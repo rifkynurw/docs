@@ -1,0 +1,3030 @@
+﻿LAPORAN EKSPOR KODE VBA UNTUK AUDIT
+Workbook: LAPORAN JAGOAN CRISPY.xlsm
+Tanggal: 2026-10-12 22:45:06
+Catatan: laporan ini hanya membaca dan mengekspor kode VBA.
+==============================================================================
+
+COMPONENT: ThisWorkbook | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: Sheet1 | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: Module1 | TYPE=STANDARD MODULE | LINES=5
+------------------------------------------------------------------------------
+Sub ResetExcelEvents()
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    MsgBox "Sistem Double-Click Berhasil Direset & Aktif Kembali!", vbInformation
+End Sub
+
+==============================================================================
+
+COMPONENT: Sheet3 | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: Sheet5 | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: Sheet6 | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: Sheet7 | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: Sheet8 | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=28
+------------------------------------------------------------------------------
+Private Sub Worksheet_Change(ByVal Target As Range)
+    Dim cell As Range
+    Dim pos As Long
+    
+    On Error GoTo CleanExit
+    Application.EnableEvents = False
+    
+    ' Berjalan jika ada perubahan di Kolom C (C15 sampai C1000)
+    If Not Intersect(Target, Me.Range("C15:C1000")) Is Nothing Then
+        For Each cell In Intersect(Target, Me.Range("C15:C1000"))
+            If cell.Value <> "" Then
+                ' 1. Otomatis isi tanggal hari ini di Kolom A jika Kolom A masih kosong
+                If Me.Cells(cell.Row, 1).Value = "" Then
+                    Me.Cells(cell.Row, 1).Value = Format(Date, "dd/mm/yyyy")
+                End If
+                
+                ' 2. Potong teks gabungan dropdown, ambil KODE BAHAN-nya saja
+                If InStr(cell.Value, "|") > 0 Then
+                    pos = InStr(cell.Value, "|")
+                    cell.Value = Trim(Left(cell.Value, pos - 1))
+                End If
+            End If
+        Next cell
+    End If
+
+CleanExit:
+    Application.EnableEvents = True
+End Sub
+
+==============================================================================
+
+COMPONENT: Module2 | TYPE=STANDARD MODULE | LINES=138
+------------------------------------------------------------------------------
+Sub TutupBukuBulanan()
+    Dim wsStok As Worksheet
+    Dim wsQty As Worksheet
+    Dim answer As VbMsgBoxResult
+    Dim openFolderAnswer As VbMsgBoxResult
+    Dim mainFolderPath As String
+    Dim folderPath As String
+    Dim backupFileName As String
+    Dim fullBackupPath As String
+    Dim namaBulan As String
+    Dim tahun As String
+    Dim fso As Object
+    Dim lastRowStok As Long
+    Dim lastRowQty As Long
+    
+    ' Set Worksheet
+    Set wsStok = ThisWorkbook.Sheets("STOK & BELANJA BAHAN")
+    On Error Resume Next
+    Set wsQty = ThisWorkbook.Sheets("PENJUALAN (QTY)")
+    On Error GoTo ErrorHandler
+    
+    ' 1. Tentukan Nama File Backup & Tahun
+    namaBulan = UCase(Format(Date, "mmmm")) ' Contoh: OKTOBER / OCTOBER
+    tahun = Format(Date, "yyyy")          ' Contoh: 2026
+    backupFileName = "LAPORAN " & namaBulan & " " & tahun & ".xlsm"
+    
+    ' 2. Menentukan Folder Utama & Sub-Folder [Tahun]
+    mainFolderPath = "C:\Users\lenovo\OneDrive\Documents\JAGOAN CRISPY\LAPORAN PENJUALAN\"
+    folderPath = mainFolderPath & tahun & "\"
+    fullBackupPath = folderPath & backupFileName
+    
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    ' 3. PROTEKSI MUTLAK: JIKA FILE BACKUP SUDAH ADA, LANGSUNG HENTIKAN PROSES!
+    If fso.FileExists(fullBackupPath) Then
+        MsgBox "TUTUP BUKU DITOLAK / DIBATALKAN!" & vbCrLf & vbCrLf & _
+               "Laporan untuk periode " & namaBulan & " " & tahun & " sudah pernah dibuat." & vbCrLf & _
+               "File backup sudah tersimpan di:" & vbCrLf & _
+               backupFileName & vbCrLf & vbCrLf & _
+               "Sistem membatalkan proses otomatis untuk mencegah hilangnya data laporan.", _
+               vbCritical, "Akses Ditolak - Tutup Buku Ganda"
+        Exit Sub
+    End If
+    
+    ' 4. Konfirmasi Keikutsertaan Standar (Pertama Kali Tutup Buku)
+    answer = MsgBox("Apakah Anda yakin ingin melakukan TUTUP BUKU BULANAN periode " & namaBulan & " " & tahun & "?" & vbCrLf & vbCrLf & _
+                    "- File ini akan di-backup otomatis ke sub-folder " & tahun & "." & vbCrLf & _
+                    "- Estimasi Sisa Stok akan dipindah ke Belanja Modal Bulan Lalu." & vbCrLf & _
+                    "- Log Catatan Belanja & Data Penjualan QTY akan dibersihkan.", _
+                    vbQuestion + vbOKCancel, "Konfirmasi Tutup Buku Bulanan")
+                    
+    If answer = vbCancel Then
+        MsgBox "Proses Tutup Buku dibatalkan.", vbInformation, "Batal"
+        Exit Sub
+    End If
+    
+    ' Buat folder utama & sub-folder [Tahun] otomatis jika belum ada di komputer
+    If Not fso.FolderExists(mainFolderPath) Then
+        On Error Resume Next
+        fso.CreateFolder mainFolderPath
+        On Error GoTo ErrorHandler
+    End If
+    
+    If Not fso.FolderExists(folderPath) Then
+        On Error Resume Next
+        fso.CreateFolder folderPath
+        On Error GoTo ErrorHandler
+    End If
+    
+    ' 5. Simpan Backup File (SaveCopyAs)
+    On Error GoTo ErrorHandler
+    
+    ' Simpan perubahan pada workbook utama terlebih dahulu
+    ThisWorkbook.Save
+    
+    ' Buat salinan fisik file backup ke sub-folder tahun
+    ThisWorkbook.SaveCopyAs fullBackupPath
+    
+    ' Verifikasi apakah file backup berhasil dibuat
+    If Not fso.FileExists(fullBackupPath) Then
+        Err.Raise Number:=9999, Description:="File backup tidak dapat ditemukan di lokasi: " & fullBackupPath
+    End If
+    
+    ' 6. Eksekusi Pemindahan Data & Pembersihan (Hanya jika backup BERHASIL)
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    
+    ' A. Copy-Paste Values Sisa Stok (E12:E16) ke Modal Bulan Lalu (B12:B16) pada sheet STOK & BELANJA BAHAN
+    wsStok.Range("B12:B16").Value = wsStok.Range("E12:E16").Value
+    
+    ' B. Bersihkan Log Catatan Belanja (A22:G ke bawah) pada sheet STOK & BELANJA BAHAN
+    lastRowStok = wsStok.Cells(wsStok.Rows.Count, "C").End(xlUp).Row
+    If lastRowStok >= 22 Then
+        wsStok.Range("A22:G" & lastRowStok).ClearContents
+    End If
+    
+    ' C. Bersihkan Data Penjualan QTY (C2:AG ke bawah) pada sheet PENJUALAN (QTY)
+    If Not wsQty Is Nothing Then
+        lastRowQty = wsQty.Cells(wsQty.Rows.Count, "A").End(xlUp).Row
+        If lastRowQty < 2 Then
+            lastRowQty = wsQty.Cells(wsQty.Rows.Count, "B").End(xlUp).Row
+        End If
+        
+        If lastRowQty >= 2 Then
+            wsQty.Range("C2:AG" & lastRowQty).ClearContents
+        End If
+    End If
+    
+    ' D. Simpan Perubahan File Utama
+    ThisWorkbook.Save
+    
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    
+    ' 7. Pesan Berhasil & Opsi Membuka Folder Backup
+    openFolderAnswer = MsgBox("Tutup Buku Bulanan BERHASIL dilakukan!" & vbCrLf & vbCrLf & _
+                              "File backup tersimpan di:" & vbCrLf & _
+                              fullBackupPath & vbCrLf & vbCrLf & _
+                              "Apakah Anda ingin membuka FOLDER penyimpanan backup tersebut sekarang?", _
+                              vbQuestion + vbYesNo, "Tutup Buku Selesai")
+                              
+    ' 8. Jika Pengguna Memilih YES, Buka Sub-Folder Penyimpanan [Tahun] di Windows Explorer
+    If openFolderAnswer = vbYes Then
+        Shell "explorer.exe """ & folderPath & """", vbNormalFocus
+    End If
+           
+    Exit Sub
+
+ErrorHandler:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    MsgBox "PROSES DIBATALKAN / GAGAL!" & vbCrLf & _
+           "Gagal membuat file backup." & vbCrLf & _
+           "Pembersihan log belanja & data penjualan TIDAK dilakukan demi keamanan data." & vbCrLf & _
+           "Pesan Error: " & Err.Description, _
+           vbCritical, "Gagal Backup"
+End Sub
+
+==============================================================================
+
+COMPONENT: modDiagnostikWorkbookHPP | TYPE=STANDARD MODULE | LINES=168
+------------------------------------------------------------------------------
+Option Explicit
+
+' Membuat laporan struktur workbook untuk perancangan FORM HPP dan DETAIL HPP.
+' Macro ini hanya MEMBACA workbook dan menulis laporan TXT. Tidak mengubah sheet/data.
+
+Public Sub BuatLaporanStrukturWorkbookHPP()
+    Dim ws As Worksheet
+    Dim ur As Range
+    Dim c As Range
+    Dim lo As ListObject
+    Dim nm As Name
+    Dim outPath As Variant
+    Dim f As Integer
+    Dim r As Long, col As Long
+    Dim lastRow As Long, lastCol As Long
+    Dim includeSample As Boolean
+
+    On Error GoTo ErrHandler
+
+    outPath = Application.GetSaveAsFilename( _
+        InitialFileName:="Laporan_Struktur_Workbook_HPP.txt", _
+        FileFilter:="Text Files (*.txt), *.txt", _
+        Title:="Simpan laporan struktur workbook")
+
+    If VarType(outPath) = vbBoolean Then
+        If outPath = False Then Exit Sub
+    End If
+    If LCase$(Right$(CStr(outPath), 4)) <> ".txt" Then outPath = CStr(outPath) & ".txt"
+
+    f = FreeFile
+    Open CStr(outPath) For Output As #f
+
+    Print #f, "LAPORAN STRUKTUR WORKBOOK - DIAGNOSTIK HPP"
+    Print #f, "Tanggal laporan: " & Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    Print #f, "Nama file: " & ThisWorkbook.Name
+    Print #f, "Lokasi file: " & ThisWorkbook.FullName
+    Print #f, String$(72, "=")
+    Print #f, "1. DAFTAR SHEET, AREA TERPAKAI, DAN EXCEL TABLE"
+
+    For Each ws In ThisWorkbook.Worksheets
+        Set ur = Nothing
+        On Error Resume Next
+        Set ur = ws.UsedRange
+        On Error GoTo ErrHandler
+
+        If Not ur Is Nothing Then
+            Print #f, vbCrLf & "SHEET: " & ws.Name
+            Print #f, "  Visibility: " & visibilityText(ws.Visible)
+            Print #f, "  UsedRange: " & ur.Address(False, False) & _
+                      " | Rows=" & ur.Rows.Count & " | Columns=" & ur.Columns.Count
+        Else
+            Print #f, vbCrLf & "SHEET: " & ws.Name & " | UsedRange tidak terdeteksi"
+        End If
+
+        If ws.ListObjects.Count = 0 Then
+            Print #f, "  Excel Table: (tidak ada)"
+        Else
+            For Each lo In ws.ListObjects
+                Print #f, "  TABLE: " & lo.Name & " | Range=" & lo.Range.Address(False, False) & _
+                          " | DataRows=" & lo.ListRows.Count
+                If Not lo.HeaderRowRange Is Nothing Then
+                    Print #f, "    HEADER: " & HeaderRowText(lo.HeaderRowRange)
+                End If
+            Next lo
+        End If
+    Next ws
+
+    Print #f, vbCrLf & String$(72, "=")
+    Print #f, "2. CONTOH ISI DAN FORMULA DARI SHEET YANG RELEVAN"
+    Print #f, "Setiap sheet melaporkan hingga 15 baris x 25 kolom pertama dari UsedRange."
+    Print #f, "Nilai kosong dilewati; sel berformula menampilkan nilai dan formula."
+
+    For Each ws In ThisWorkbook.Worksheets
+        includeSample = IsRelevantSheet(ws.Name)
+        If includeSample Then
+            Set ur = ws.UsedRange
+            Print #f, vbCrLf & String$(72, "-")
+            Print #f, "SHEET: " & ws.Name
+
+            If ur Is Nothing Then
+                Print #f, "  (kosong)"
+            Else
+                lastRow = ur.Row + WorksheetFunction.Min(ur.Rows.Count, 15) - 1
+                lastCol = ur.Column + WorksheetFunction.Min(ur.Columns.Count, 25) - 1
+
+                For r = ur.Row To lastRow
+                    For col = ur.Column To lastCol
+                        Set c = ws.Cells(r, col)
+                        If c.hasFormula Or Len(SafeText(c.Value2)) > 0 Then
+                            Print #f, "  " & c.Address(False, False) & _
+                                " | DISPLAY=" & CleanForReport(SafeText(c.Text)) & _
+                                " | VALUE=" & CleanForReport(SafeText(c.Value2)) & _
+                                IIf(c.hasFormula, " | FORMULA=" & CleanForReport(SafeText(c.Formula)), "")
+                        End If
+                    Next col
+                Next r
+            End If
+        End If
+    Next ws
+
+    Print #f, vbCrLf & String$(72, "=")
+    Print #f, "3. DEFINED NAMES / NAMED RANGES"
+    If ThisWorkbook.Names.Count = 0 Then
+        Print #f, "  (tidak ada defined name)"
+    Else
+        For Each nm In ThisWorkbook.Names
+            On Error Resume Next
+            Print #f, "  " & nm.Name & " | REFERS TO=" & CleanForReport(nm.RefersTo)
+            On Error GoTo ErrHandler
+        Next nm
+    End If
+
+    Print #f, vbCrLf & "SELESAI. Macro ini tidak mengubah isi workbook."
+    Close #f
+    MsgBox "Laporan struktur berhasil dibuat:" & vbCrLf & CStr(outPath) & vbCrLf & vbCrLf & _
+           "Kirim file TXT tersebut di chat ini.", vbInformation, "Diagnostik Workbook HPP"
+    Exit Sub
+
+ErrHandler:
+    On Error Resume Next
+    If f <> 0 Then Close #f
+    MsgBox "Gagal membuat laporan: " & Err.Description, vbExclamation, "Diagnostik Workbook HPP"
+End Sub
+
+Private Function IsRelevantSheet(ByVal sheetName As String) As Boolean
+    Select Case UCase$(Trim$(sheetName))
+        Case "MASTER PRODUK", "MASTER BAHAN BAKU", "HPP", "HPP (KATEGORI)", "PENJUALAN (QTY)"
+            IsRelevantSheet = True
+        Case Else
+            IsRelevantSheet = False
+    End Select
+End Function
+
+Private Function visibilityText(ByVal v As XlSheetVisibility) As String
+    Select Case v
+        Case xlSheetVisible: visibilityText = "Visible"
+        Case xlSheetHidden: visibilityText = "Hidden"
+        Case xlSheetVeryHidden: visibilityText = "VeryHidden"
+        Case Else: visibilityText = CStr(v)
+    End Select
+End Function
+
+Private Function HeaderRowText(ByVal headerRange As Range) As String
+    Dim cell As Range
+    Dim result As String
+    For Each cell In headerRange.Cells
+        If Len(result) > 0 Then result = result & " | "
+        result = result & CleanForReport(SafeText(cell.Value2))
+    Next cell
+    HeaderRowText = result
+End Function
+
+Private Function SafeText(ByVal v As Variant) As String
+    If IsError(v) Then
+        SafeText = "#ERROR"
+    ElseIf IsEmpty(v) Or IsNull(v) Then
+        SafeText = ""
+    Else
+        SafeText = CStr(v)
+    End If
+End Function
+
+Private Function CleanForReport(ByVal s As String) As String
+    s = Replace(s, vbCr, " ")
+    s = Replace(s, vbLf, " ")
+    s = Replace(s, vbTab, " ")
+    CleanForReport = Trim$(s)
+End Function
+
+==============================================================================
+
+COMPONENT: Sheet9 | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: Sheet10 | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: Sheet11 | TYPE=WORKSHEET / THISWORKBOOK MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: modKolomHargaOnline | TYPE=STANDARD MODULE | LINES=231
+------------------------------------------------------------------------------
+Option Explicit
+
+' ============================================================================
+' MENAMBAHKAN 4 KOLOM HARGA ONLINE KE tbl_Produk
+' Workbook: LAPORAN JAGOAN CRISPY.xlsm
+'
+' Kolom yang ditambahkan:
+'   KOMISI ONLINE (%)
+'   PROMO MERCHANT (%)
+'   HARGA CORET ONLINE
+'   HARGA SETELAH PROMO
+'
+' Keamanan:
+' - Tidak menghapus atau mengubah sheet HPP lama.
+' - Tidak mengubah kolom A:F yang sudah ada pada MASTER PRODUK.
+' - Bila kolom sudah ada, macro tidak membuat duplikat.
+' - Bila nilai komisi/promo masih kosong, macro mencoba menyalin nilai dari
+'   baris produk utama pada HPP lama (kolom S dan T), berdasarkan KODE PRODUK.
+' - Nilai komisi/promo yang sudah terisi tidak ditimpa.
+' - Dua kolom harga online dihitung dengan formula Excel Table.
+' - Produk yang tidak punya nilai lama tetap kosong agar tidak menebak tarif.
+' ============================================================================
+
+Private Const SHEET_PRODUK As String = "MASTER PRODUK"
+Private Const SHEET_HPP_LAMA As String = "HPP"
+Private Const TABLE_PRODUK As String = "tbl_Produk"
+
+Private Const COL_KODE As String = "KODE PRODUK"
+Private Const COL_HARGA_OFFLINE As String = "HARGA JUAL OFFLINE"
+Private Const COL_KOMISI As String = "KOMISI ONLINE (%)"
+Private Const COL_PROMO As String = "PROMO MERCHANT (%)"
+Private Const COL_HARGA_CORET As String = "HARGA CORET ONLINE"
+Private Const COL_HARGA_PROMO As String = "HARGA SETELAH PROMO"
+
+Public Sub TambahKolomHargaOnlineMasterProduk()
+    Dim wsP As Worksheet, wsOld As Worksheet
+    Dim loP As ListObject
+    Dim colKomisi As ListColumn, colPromo As ListColumn
+    Dim colCoret As ListColumn, colSetelahPromo As ListColumn
+    Dim required As Variant, i As Long
+    Dim r As Long, code As String, oldRow As Long
+    Dim rateCopied As Long, rowsWithoutLegacyRate As Long
+    Dim oldCalc As XlCalculation
+
+    oldCalc = Application.Calculation
+    On Error GoTo ErrHandler
+
+    Set wsP = GetSheetSafe(SHEET_PRODUK)
+    Set wsOld = GetSheetSafe(SHEET_HPP_LAMA)
+
+    If wsP Is Nothing Then
+        MsgBox "Sheet 'MASTER PRODUK' tidak ditemukan.", vbExclamation, "Tambah Kolom Harga Online"
+        Exit Sub
+    End If
+
+    On Error Resume Next
+    Set loP = wsP.ListObjects(TABLE_PRODUK)
+    On Error GoTo ErrHandler
+
+    If loP Is Nothing Then
+        MsgBox "Excel Table 'tbl_Produk' tidak ditemukan di MASTER PRODUK.", vbExclamation, "Tambah Kolom Harga Online"
+        Exit Sub
+    End If
+
+    required = Array(COL_KODE, "NAMA PRODUK", COL_HARGA_OFFLINE, "HPP PER UNIT", _
+                     "LABA PER UNIT (RP)", "MARGIN LABA (%)")
+    For i = LBound(required) To UBound(required)
+        If Not HasColumn(loP, CStr(required(i))) Then
+            MsgBox "Kolom wajib '" & CStr(required(i)) & "' tidak ditemukan di tbl_Produk." & vbCrLf & _
+                   "Tidak ada perubahan yang dilanjutkan.", vbExclamation, "Tambah Kolom Harga Online"
+            Exit Sub
+        End If
+    Next i
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+
+    Set colKomisi = EnsureColumn(loP, COL_KOMISI)
+    Set colPromo = EnsureColumn(loP, COL_PROMO)
+    Set colCoret = EnsureColumn(loP, COL_HARGA_CORET)
+    Set colSetelahPromo = EnsureColumn(loP, COL_HARGA_PROMO)
+
+    ' Salin tarif dari HPP lama hanya jika sel MASTER PRODUK masih kosong.
+    ' Baris produk utama dibedakan dengan kolom C (PRODUK) yang tidak kosong.
+    rateCopied = 0
+    rowsWithoutLegacyRate = 0
+
+    If Not loP.DataBodyRange Is Nothing Then
+        For r = 1 To loP.DataBodyRange.Rows.Count
+            code = Trim$(CStr(loP.ListColumns(COL_KODE).DataBodyRange.Cells(r, 1).Value))
+            If Len(code) > 0 Then
+                oldRow = FindMainProductRow(wsOld, code)
+
+                If Len(Trim$(CStr(colKomisi.DataBodyRange.Cells(r, 1).Value))) = 0 Then
+                    If oldRow > 0 And IsNumeric(wsOld.Cells(oldRow, "S").Value) Then
+                        colKomisi.DataBodyRange.Cells(r, 1).Value = CDbl(wsOld.Cells(oldRow, "S").Value)
+                        rateCopied = rateCopied + 1
+                    End If
+                End If
+
+                If Len(Trim$(CStr(colPromo.DataBodyRange.Cells(r, 1).Value))) = 0 Then
+                    If oldRow > 0 And IsNumeric(wsOld.Cells(oldRow, "T").Value) Then
+                        colPromo.DataBodyRange.Cells(r, 1).Value = CDbl(wsOld.Cells(oldRow, "T").Value)
+                        rateCopied = rateCopied + 1
+                    End If
+                End If
+
+                If oldRow = 0 Then rowsWithoutLegacyRate = rowsWithoutLegacyRate + 1
+            End If
+        Next r
+
+        ' Formula HARGA CORET ONLINE mengikuti logika lama:
+        ' CEILING(HARGA JUAL OFFLINE / (1 - (KOMISI + PROMO)), 500).
+        colCoret.DataBodyRange.Formula = _
+            "=IF(OR([@[HARGA JUAL OFFLINE]]="""",[@[KOMISI ONLINE (%)]]="""",[@[PROMO MERCHANT (%)]]="""",1-([@[KOMISI ONLINE (%)]]+[@[PROMO MERCHANT (%)]] )<=0),"""",IFERROR(CEILING([@[HARGA JUAL OFFLINE]]/(1-([@[KOMISI ONLINE (%)]]+[@[PROMO MERCHANT (%)]])),500),""""))"
+
+        ' Formula harga setelah promo: HARGA CORET ONLINE * (1 - PROMO MERCHANT).
+        colSetelahPromo.DataBodyRange.Formula = _
+            "=IF(OR([@[HARGA CORET ONLINE]]="""",[@[PROMO MERCHANT (%)]]=""""),"""",IFERROR([@[HARGA CORET ONLINE]]*(1-[@[PROMO MERCHANT (%)]]),""""))"
+    End If
+
+    ' Format kolom input persentase dan harga.
+    If Not colKomisi.DataBodyRange Is Nothing Then colKomisi.DataBodyRange.NumberFormat = "0%"
+    If Not colPromo.DataBodyRange Is Nothing Then colPromo.DataBodyRange.NumberFormat = "0%"
+    If Not colCoret.DataBodyRange Is Nothing Then colCoret.DataBodyRange.NumberFormat = """Rp"" #,##0"
+    If Not colSetelahPromo.DataBodyRange Is Nothing Then colSetelahPromo.DataBodyRange.NumberFormat = """Rp"" #,##0"
+
+    colKomisi.Range.EntireColumn.ColumnWidth = 17
+    colPromo.Range.EntireColumn.ColumnWidth = 18
+    colCoret.Range.EntireColumn.ColumnWidth = 20
+    colSetelahPromo.Range.EntireColumn.ColumnWidth = 22
+
+    ' Validasi tarif di antara 0% dan 100%.
+    ApplyRateValidation colKomisi
+    ApplyRateValidation colPromo
+
+    Application.Calculation = xlCalculationAutomatic
+    Application.CalculateFull
+
+    MsgBox "Empat kolom harga online sudah tersedia di tbl_Produk." & vbCrLf & vbCrLf & _
+           "Nama kolom:" & vbCrLf & _
+           "- KOMISI ONLINE (%)" & vbCrLf & _
+           "- PROMO MERCHANT (%)" & vbCrLf & _
+           "- HARGA CORET ONLINE" & vbCrLf & _
+           "- HARGA SETELAH PROMO" & vbCrLf & vbCrLf & _
+           "Nilai komisi/promo yang kosong telah dicoba diisi dari HPP lama. Nilai yang sudah ada tidak ditimpa." & vbCrLf & _
+           IIf(rowsWithoutLegacyRate > 0, rowsWithoutLegacyRate & " produk tidak memiliki baris produk utama yang cocok di HPP lama; tarifnya perlu dicek/diisi manual.", "Tarif lama berhasil dicocokkan untuk seluruh produk yang memiliki baris induk."), _
+           vbInformation, "Tambah Kolom Harga Online Selesai"
+
+CleanExit:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Application.Calculation = oldCalc
+    Exit Sub
+
+ErrHandler:
+    Dim errNum As Long, errDesc As String
+    errNum = Err.Number
+    errDesc = Err.Description
+    On Error Resume Next
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Application.Calculation = oldCalc
+    On Error GoTo 0
+    MsgBox "Penambahan kolom berhenti." & vbCrLf & _
+           "Nomor error: " & errNum & vbCrLf & _
+           "Pesan: " & errDesc & vbCrLf & vbCrLf & _
+           "Kolom yang sudah sempat ditambahkan tidak dihapus otomatis untuk menghindari kehilangan data. Jalankan kembali setelah memperbaiki penyebabnya; macro aman dijalankan ulang.", _
+           vbExclamation, "Tambah Kolom Harga Online - Diagnostik"
+End Sub
+
+Private Function GetSheetSafe(ByVal sheetName As String) As Worksheet
+    On Error Resume Next
+    Set GetSheetSafe = ThisWorkbook.Worksheets(sheetName)
+    On Error GoTo 0
+End Function
+
+Private Function HasColumn(ByVal lo As ListObject, ByVal headerName As String) As Boolean
+    Dim lc As ListColumn
+    On Error Resume Next
+    Set lc = lo.ListColumns(headerName)
+    HasColumn = Not lc Is Nothing
+    On Error GoTo 0
+End Function
+
+Private Function EnsureColumn(ByVal lo As ListObject, ByVal headerName As String) As ListColumn
+    Dim lc As ListColumn
+    On Error Resume Next
+    Set lc = lo.ListColumns(headerName)
+    On Error GoTo 0
+
+    If lc Is Nothing Then
+        Set lc = lo.ListColumns.Add
+        lc.Name = headerName
+    End If
+    Set EnsureColumn = lc
+End Function
+
+Private Function FindMainProductRow(ByVal wsOld As Worksheet, ByVal productCode As String) As Long
+    Dim lastRow As Long, r As Long
+    If wsOld Is Nothing Then Exit Function
+
+    lastRow = wsOld.Cells(wsOld.Rows.Count, "A").End(xlUp).Row
+    For r = 3 To lastRow
+        If StrComp(Trim$(CStr(wsOld.Cells(r, "A").Value)), productCode, vbTextCompare) = 0 _
+           And Len(Trim$(CStr(wsOld.Cells(r, "C").Value))) > 0 Then
+            FindMainProductRow = r
+            Exit Function
+        End If
+    Next r
+End Function
+
+Private Sub ApplyRateValidation(ByVal lc As ListColumn)
+    If lc Is Nothing Then Exit Sub
+    If lc.DataBodyRange Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    With lc.DataBodyRange.Validation
+        .Delete
+        .Add Type:=xlValidateDecimal, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="0", Formula2:="1"
+        .IgnoreBlank = True
+        .InputTitle = "Persentase 0%-100%"
+        .InputMessage = "Masukkan nilai persentase antara 0% dan 100%, misalnya 38% atau 0%."
+        .ErrorTitle = "Persentase tidak valid"
+        .ErrorMessage = "Nilai harus berada di antara 0% dan 100%."
+        .ShowInput = True
+        .ShowError = True
+    End With
+    On Error GoTo 0
+End Sub
+
+==============================================================================
+
+COMPONENT: Module3 | TYPE=STANDARD MODULE | LINES=0
+------------------------------------------------------------------------------
+[KOMPONEN TIDAK MEMILIKI KODE]
+
+==============================================================================
+
+COMPONENT: modFormHPP | TYPE=STANDARD MODULE | LINES=820
+------------------------------------------------------------------------------
+Option Explicit
+
+' ============================================================================
+' MODUL FORM HPP DAN DETAIL HPP - PESAN BERSIH DAN PERBAIKAN MERGED CELL
+' Workbook: LAPORAN JAGOAN CRISPY.xlsm
+'
+' TUJUAN:
+' 1. Membuat sheet FORM HPP untuk input satu produk beserta komponen resepnya.
+' 2. Membuat sheet DETAIL HPP dengan Excel Table tblDetailHPP sebagai penyimpanan.
+' 3. Mengambil produk dari tbl_Produk dan komponen dari tbl_BahanBaku.
+' 4. Mendukung komponen jenis BAHAN maupun PRODUK/SUBRESEP.
+' 5. Menolak pendaftaran ulang hanya jika resep produk sudah tersimpan di DETAIL HPP.
+' 6. Pemeriksaan produk baru hanya menggunakan MASTER PRODUK dan DETAIL HPP.
+' 7. Pembersihan FORM HPP menggunakan seluruh area gabungan B3:D3 agar tidak error 1004.
+'
+' CATATAN:
+' - FORM HPP dan DETAIL HPP adalah tahap awal; rumus rekap kategori belum dialihkan.
+' - Produk baru harus sudah ditambahkan ke tbl_Produk terlebih dahulu.
+' - Harga yang belum tersedia dan satuan pemakaian yang tidak sesuai ditandai.
+' - Simpan salinan workbook sebelum mengimpor atau menjalankan macro baru.
+' ============================================================================
+
+Private Const SH_FORM As String = "FORM HPP"
+Private Const SH_DETAIL As String = "DETAIL HPP"
+Private Const SH_HELPER As String = "_LIST_HPP"
+Private Const SH_MASTER_PRODUK As String = "MASTER PRODUK"
+Private Const SH_MASTER_BAHAN As String = "MASTER BAHAN BAKU"
+Private Const TBL_PRODUK As String = "tbl_Produk"
+Private Const TBL_BAHAN As String = "tbl_BahanBaku"
+Private Const TBL_DETAIL As String = "tblDetailHPP"
+
+Private Const FORM_FIRST_ROW As Long = 9
+Private Const FORM_LAST_ROW As Long = 38  ' 30 baris komponen input
+
+Private Function SheetExists(ByVal sheetName As String) As Boolean
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(sheetName)
+    SheetExists = Not ws Is Nothing
+    On Error GoTo 0
+End Function
+
+Private Function GetWorksheet(ByVal sheetName As String) As Worksheet
+    On Error Resume Next
+    Set GetWorksheet = ThisWorkbook.Worksheets(sheetName)
+    On Error GoTo 0
+End Function
+
+Private Function GetTable(ByVal sheetName As String, ByVal tableName As String) As ListObject
+    Dim ws As Worksheet
+    Set ws = GetWorksheet(sheetName)
+    If ws Is Nothing Then Exit Function
+    On Error Resume Next
+    Set GetTable = ws.ListObjects(tableName)
+    On Error GoTo 0
+End Function
+
+Private Function ValidatePrerequisites() As Boolean
+    Dim loP As ListObject, loB As ListObject
+    Dim requiredP As Variant, requiredB As Variant
+    Dim i As Long
+
+    ValidatePrerequisites = False
+
+    If Not SheetExists(SH_MASTER_PRODUK) Or Not SheetExists(SH_MASTER_BAHAN) Then
+        MsgBox "Sheet wajib tidak ditemukan. Diperlukan: MASTER PRODUK dan MASTER BAHAN BAKU.", vbExclamation, "FORM HPP"
+        Exit Function
+    End If
+
+    Set loP = GetTable(SH_MASTER_PRODUK, TBL_PRODUK)
+    Set loB = GetTable(SH_MASTER_BAHAN, TBL_BAHAN)
+
+    If loP Is Nothing Then
+        MsgBox "Excel Table 'tbl_Produk' tidak ditemukan pada MASTER PRODUK.", vbExclamation, "FORM HPP"
+        Exit Function
+    End If
+    If loB Is Nothing Then
+        MsgBox "Excel Table 'tbl_BahanBaku' tidak ditemukan pada MASTER BAHAN BAKU.", vbExclamation, "FORM HPP"
+        Exit Function
+    End If
+
+    requiredP = Array("KODE PRODUK", "NAMA PRODUK", "HPP PER UNIT")
+    For i = LBound(requiredP) To UBound(requiredP)
+        If Not TableHasColumn(loP, CStr(requiredP(i))) Then
+            MsgBox "Kolom '" & requiredP(i) & "' tidak ditemukan di tbl_Produk.", vbExclamation, "FORM HPP"
+            Exit Function
+        End If
+    Next i
+
+    requiredB = Array("KODE KOMPONEN", "KATEGORI HPP", "NAMA KOMPONEN", "KUANTITAS ISI", "SATUAN ISI", "HARGA BELI TOTAL", "HARGA PER SATUAN DASAR")
+    For i = LBound(requiredB) To UBound(requiredB)
+        If Not TableHasColumn(loB, CStr(requiredB(i))) Then
+            MsgBox "Kolom '" & requiredB(i) & "' tidak ditemukan di tbl_BahanBaku.", vbExclamation, "FORM HPP"
+            Exit Function
+        End If
+    Next i
+
+    ValidatePrerequisites = True
+End Function
+
+Private Function TableHasColumn(ByVal lo As ListObject, ByVal columnName As String) As Boolean
+    Dim lc As ListColumn
+    On Error Resume Next
+    Set lc = lo.ListColumns(columnName)
+    TableHasColumn = Not lc Is Nothing
+    On Error GoTo 0
+End Function
+
+Private Function EnsureDetailSheetAndTable() As ListObject
+    Dim ws As Worksheet
+    Dim lo As ListObject
+    Dim headers As Variant
+    Dim i As Long
+
+    headers = Array("KODE PRODUK", "NAMA PRODUK", "JENIS KOMPONEN", "KODE KOMPONEN", _
+                    "KATEGORI HPP", "NAMA KOMPONEN", "QTY PAKAI", "SATUAN PAKAI", _
+                    "HARGA PER SATUAN DASAR", "BIAYA PEMAKAIAN", "STATUS HARGA")
+
+    Set ws = GetWorksheet(SH_DETAIL)
+    If ws Is Nothing Then
+        Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
+        ws.Name = SH_DETAIL
+    End If
+
+    On Error Resume Next
+    Set lo = ws.ListObjects(TBL_DETAIL)
+    On Error GoTo 0
+
+    If lo Is Nothing Then
+        If ws.ListObjects.Count > 0 Then
+            MsgBox "Sheet DETAIL HPP sudah memiliki Excel Table dengan nama lain. Macro berhenti untuk melindungi data.", vbExclamation, "FORM HPP"
+            Exit Function
+        End If
+        If Application.WorksheetFunction.CountA(ws.Cells) > 0 Then
+            MsgBox "Sheet DETAIL HPP sudah berisi data tetapi belum memiliki tblDetailHPP. Macro tidak akan menimpa isinya.", vbExclamation, "FORM HPP"
+            Exit Function
+        End If
+
+        For i = LBound(headers) To UBound(headers)
+            ws.Cells(1, i + 1).Value = headers(i)
+        Next i
+
+        Set lo = ws.ListObjects.Add(SourceType:=xlSrcRange, Source:=ws.Range("A1:K1"), XlListObjectHasHeaders:=xlYes)
+        lo.Name = TBL_DETAIL
+    Else
+        If lo.ListColumns.Count <> UBound(headers) + 1 Then
+            MsgBox "tblDetailHPP sudah ada tetapi jumlah kolomnya tidak sesuai. Tidak ada perubahan yang dilakukan pada tabel tersebut.", vbExclamation, "FORM HPP"
+            Exit Function
+        End If
+        For i = LBound(headers) To UBound(headers)
+            If CStr(lo.HeaderRowRange.Cells(1, i + 1).Value) <> CStr(headers(i)) Then
+                MsgBox "Header tblDetailHPP kolom " & (i + 1) & " berbeda dari rancangan. Macro berhenti agar data tidak tertimpa.", vbExclamation, "FORM HPP"
+                Exit Function
+            End If
+        Next i
+    End If
+
+    lo.TableStyle = "TableStyleMedium2"
+    ws.Rows(1).Font.Bold = True
+    ws.Columns("A").ColumnWidth = 17
+    ws.Columns("B").ColumnWidth = 30
+    ws.Columns("C").ColumnWidth = 18
+    ws.Columns("D").ColumnWidth = 18
+    ws.Columns("E").ColumnWidth = 28
+    ws.Columns("F").ColumnWidth = 30
+    ws.Columns("G").ColumnWidth = 13
+    ws.Columns("H").ColumnWidth = 16
+    ws.Columns("I:J").ColumnWidth = 22
+    ws.Columns("K").ColumnWidth = 29
+    ws.Columns("G:G").NumberFormat = "0.00"
+    ws.Columns("I:J").NumberFormat = """Rp"" #,##0.00"
+    ws.Columns("A:K").VerticalAlignment = xlVAlignCenter
+    ws.Activate
+    ActiveWindow.FreezePanes = False
+    ws.Range("A2").Select
+    ActiveWindow.FreezePanes = True
+
+    Set EnsureDetailSheetAndTable = lo
+End Function
+
+Private Function EnsureHelperSheet() As Worksheet
+    Dim ws As Worksheet
+    Set ws = GetWorksheet(SH_HELPER)
+    If ws Is Nothing Then
+        Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
+        ws.Name = SH_HELPER
+    End If
+    ws.Cells.Clear
+    ws.Range("A1").Value = "PRODUK BARU"
+    ws.Range("B1").Value = "DAFTAR BAHAN"
+    ws.Range("C1").Value = "DAFTAR PRODUK KOMPONEN"
+    ws.Range("D1").Value = "JENIS KOMPONEN"
+    ws.Visible = xlSheetVeryHidden
+    Set EnsureHelperSheet = ws
+End Function
+
+Private Sub SetOrReplaceName(ByVal definedName As String, ByVal refersToFormula As String)
+    On Error Resume Next
+    ThisWorkbook.Names(definedName).Delete
+    On Error GoTo 0
+    ThisWorkbook.Names.Add Name:=definedName, RefersTo:=refersToFormula
+End Sub
+
+Private Sub RefreshHelperLists()
+    Dim wsL As Worksheet, wsP As Worksheet, wsB As Worksheet
+    Dim loP As ListObject, loB As ListObject, loD As ListObject
+    Dim r As Long, outP As Long, outB As Long, outProd As Long
+    Dim code As String, productName As String, componentName As String
+    Dim lastProd As Long, lastBahan As Long, lastCompProd As Long
+
+    Set wsL = EnsureHelperSheet()
+    Set wsP = ThisWorkbook.Worksheets(SH_MASTER_PRODUK)
+    Set wsB = ThisWorkbook.Worksheets(SH_MASTER_BAHAN)
+    Set loP = wsP.ListObjects(TBL_PRODUK)
+    Set loB = wsB.ListObjects(TBL_BAHAN)
+    Set loD = GetTable(SH_DETAIL, TBL_DETAIL)
+
+    outP = 2
+    outB = 2
+    outProd = 2
+
+    If Not loP.DataBodyRange Is Nothing Then
+        For r = 1 To loP.DataBodyRange.Rows.Count
+            code = Trim$(CStr(loP.ListColumns("KODE PRODUK").DataBodyRange.Cells(r, 1).Value))
+            productName = Trim$(CStr(loP.ListColumns("NAMA PRODUK").DataBodyRange.Cells(r, 1).Value))
+            If Len(code) > 0 And Len(productName) > 0 Then
+                wsL.Cells(outProd, 3).Value = productName
+                outProd = outProd + 1
+                If Not IsProductAlreadyRegistered(code, loD) Then
+                    wsL.Cells(outP, 1).Value = productName
+                    outP = outP + 1
+                End If
+            End If
+        Next r
+    End If
+
+    If Not loB.DataBodyRange Is Nothing Then
+        For r = 1 To loB.DataBodyRange.Rows.Count
+            componentName = Trim$(CStr(loB.ListColumns("NAMA KOMPONEN").DataBodyRange.Cells(r, 1).Value))
+            If Len(componentName) > 0 Then
+                wsL.Cells(outB, 2).Value = componentName
+                outB = outB + 1
+            End If
+        Next r
+    End If
+
+    wsL.Range("D2").Value = "BAHAN"
+    wsL.Range("D3").Value = "PRODUK"
+
+    If outP = 2 Then wsL.Range("A2").Value = "(TIDAK ADA PRODUK BARU)"
+    If outB = 2 Then wsL.Range("B2").Value = "(TIDAK ADA BAHAN)"
+    If outProd = 2 Then wsL.Range("C2").Value = "(TIDAK ADA PRODUK)"
+
+    lastProd = IIf(outP > 2, outP - 1, 2)
+    lastBahan = IIf(outB > 2, outB - 1, 2)
+    lastCompProd = IIf(outProd > 2, outProd - 1, 2)
+
+    SetOrReplaceName "HPPProdukBaru", "='" & SH_HELPER & "'!$A$2:$A$" & lastProd
+    SetOrReplaceName "HPPDaftarBahan", "='" & SH_HELPER & "'!$B$2:$B$" & lastBahan
+    SetOrReplaceName "HPPDaftarProduk", "='" & SH_HELPER & "'!$C$2:$C$" & lastCompProd
+    SetOrReplaceName "HPPJenisKomponen", "='" & SH_HELPER & "'!$D$2:$D$3"
+End Sub
+
+Private Function IsProductAlreadyRegistered(ByVal productCode As String, ByVal loDetail As ListObject) As Boolean
+    Dim r As Long
+
+    ' Dropdown hanya mengecualikan produk yang resepnya sudah tercatat di DETAIL HPP.
+    IsProductAlreadyRegistered = False
+
+    If loDetail Is Nothing Then Exit Function
+    If loDetail.DataBodyRange Is Nothing Then Exit Function
+
+    For r = 1 To loDetail.DataBodyRange.Rows.Count
+        If StrComp(Trim$(CStr(loDetail.ListColumns("KODE PRODUK").DataBodyRange.Cells(r, 1).Value)), _
+                   Trim$(productCode), vbTextCompare) = 0 Then
+            IsProductAlreadyRegistered = True
+            Exit Function
+        End If
+    Next r
+End Function
+
+Private Function EnsureFormSheet() As Worksheet
+    Dim ws As Worksheet
+    Dim answer As VbMsgBoxResult
+    Dim r As Long
+    Dim headers As Variant
+    Dim dq As String
+
+    dq = Chr$(34)
+    Set ws = GetWorksheet(SH_FORM)
+    If Not ws Is Nothing Then
+        answer = MsgBox("Sheet FORM HPP sudah ada." & vbCrLf & _
+                        "Apakah layout FORM HPP boleh dibuat ulang? Input yang belum disimpan pada FORM HPP akan dihapus; data DETAIL HPP tidak dihapus.", _
+                        vbYesNo + vbExclamation, "Buat Ulang FORM HPP")
+        If answer <> vbYes Then Exit Function
+        ws.Cells.UnMerge
+        ws.Cells.Clear
+        For r = ws.Shapes.Count To 1 Step -1
+            ws.Shapes(r).Delete
+        Next r
+    Else
+        Set ws = ThisWorkbook.Worksheets.Add(Before:=ThisWorkbook.Worksheets(SH_DETAIL))
+        ws.Name = SH_FORM
+    End If
+
+    With ws
+        .Range("A1:I1").Merge
+        .Range("A1").Value = "FORM INPUT HPP PRODUK"
+        .Range("A1:I1").Interior.Color = RGB(31, 78, 121)
+        .Range("A1:I1").Font.Color = RGB(255, 255, 255)
+        .Range("A1:I1").Font.Bold = True
+        .Range("A1:I1").Font.Size = 16
+        .Range("A1:I1").HorizontalAlignment = xlCenter
+        .Rows(1).RowHeight = 32
+
+        .Range("A2:I2").Merge
+        .Range("A2").Value = "Pilih produk yang belum memiliki resep tersimpan, lalu pilih komponen dan isi QTY serta SATUAN PAKAI."
+        .Range("A2:I2").WrapText = True
+        .Range("A2:I2").Font.Italic = True
+        .Range("A2:I2").Font.Color = RGB(89, 89, 89)
+        .Rows(2).RowHeight = 30
+
+        .Range("A3").Value = "NAMA PRODUK"
+        .Range("B3:D3").Merge
+        .Range("E3").Value = "KODE PRODUK"
+        .Range("F3:G3").Merge
+        .Range("H3").Value = "STATUS PRODUK"
+        .Range("F3").Formula = "=IF(B3="""","""",IFERROR(INDEX(tbl_Produk[KODE PRODUK],MATCH(B3,tbl_Produk[NAMA PRODUK],0)),""""))"
+        .Range("I3").Formula = "=IF(B3=" & dq & dq & "," & dq & "PILIH PRODUK DARI DROPDOWN" & dq & ",IF(F3=" & dq & dq & "," & dq & "TIDAK ADA PRODUK VALID / PERIKSA MASTER" & dq & ",IF(COUNTIF(HPPProdukBaru,B3)>0," & dq & "SIAP DIINPUT" & dq & "," & dq & "RESEP SUDAH ADA / PILIH PRODUK LAIN" & dq & ")))"
+        .Range("A3:I3").Font.Bold = True
+        .Range("A3,E3,H3").Interior.Color = RGB(221, 235, 247)
+        .Range("B3:D3,F3:G3,I3").Interior.Color = RGB(242, 248, 252)
+        .Range("B3:D3,F3:G3,I3").Borders.LineStyle = xlContinuous
+        .Range("I3").WrapText = True
+        .Rows(3).RowHeight = 32
+
+        .Range("A5:I5").Merge
+        .Range("A5").Value = "BAHAN: pilih dari MASTER BAHAN BAKU. PRODUK: pilih produk/subresep lain. Satuan bahan harus sama dengan SATUAN ISI pada master."
+        .Range("A5:I5").WrapText = True
+        .Range("A5:I5").Interior.Color = RGB(255, 242, 204)
+        .Rows(5).RowHeight = 32
+
+        .Range("A7:I7").Merge
+        .Range("A7").Value = "RINCIAN KOMPONEN PRODUK"
+        .Range("A7:I7").Font.Bold = True
+        .Range("A7:I7").Font.Color = RGB(31, 78, 121)
+        .Range("A7:I7").Font.Size = 12
+
+        headers = Array("JENIS KOMPONEN", "NAMA KOMPONEN", "KODE KOMPONEN", "KATEGORI HPP", "QTY PAKAI", "SATUAN PAKAI", "HARGA PER SATUAN DASAR", "BIAYA PEMAKAIAN", "STATUS HARGA")
+        For r = LBound(headers) To UBound(headers)
+            .Cells(8, r + 1).Value = headers(r)
+        Next r
+        With .Range("A8:I8")
+            .Font.Bold = True
+            .Font.Color = RGB(255, 255, 255)
+            .Interior.Color = RGB(68, 114, 196)
+            .WrapText = True
+            .HorizontalAlignment = xlCenter
+            .VerticalAlignment = xlCenter
+        End With
+        .Rows(8).RowHeight = 34
+
+        For r = FORM_FIRST_ROW To FORM_LAST_ROW
+            .Cells(r, "C").Formula = "=IF($B" & r & "=" & dq & dq & "," & dq & dq & ",IF($A" & r & "=" & dq & "BAHAN" & dq & ",IFERROR(INDEX(tbl_BahanBaku[KODE KOMPONEN],MATCH($B" & r & ",tbl_BahanBaku[NAMA KOMPONEN],0))," & dq & dq & "),IFERROR(INDEX(tbl_Produk[KODE PRODUK],MATCH($B" & r & ",tbl_Produk[NAMA PRODUK],0))," & dq & dq & ")))"
+            .Cells(r, "D").Formula = "=IF($B" & r & "=" & dq & dq & "," & dq & dq & ",IF($A" & r & "=" & dq & "BAHAN" & dq & ",IFERROR(INDEX(tbl_BahanBaku[KATEGORI HPP],MATCH($C" & r & ",tbl_BahanBaku[KODE KOMPONEN],0))," & dq & dq & ")," & dq & "PRODUK / SUBRESEP" & dq & "))"
+            .Cells(r, "G").Formula = "=IF($B" & r & "=" & dq & dq & "," & dq & dq & ",IF($A" & r & "=" & dq & "BAHAN" & dq & ",IFERROR(INDEX(tbl_BahanBaku[HARGA PER SATUAN DASAR],MATCH($C" & r & ",tbl_BahanBaku[KODE KOMPONEN],0))," & dq & dq & "),IFERROR(INDEX(tbl_Produk[HPP PER UNIT],MATCH($C" & r & ",tbl_Produk[KODE PRODUK],0))," & dq & dq & ")))"
+            .Cells(r, "H").Formula = "=IF(OR($B" & r & "=" & dq & dq & ",$E" & r & "=" & dq & dq & ",$G" & r & "=" & dq & dq & ",NOT(ISNUMBER($E" & r & ")))," & dq & dq & ",ROUND($E" & r & "*$G" & r & ",2))"
+            .Cells(r, "I").Formula = FormStatusFormula(r)
+        Next r
+
+        .Range("A9:B38,E9:F38").Interior.Color = RGB(255, 255, 255)
+        .Range("C9:D38,G9:I38").Interior.Color = RGB(242, 248, 252)
+        .Range("A8:I38").Borders.LineStyle = xlContinuous
+        .Range("E9:E38").NumberFormat = "0.00"
+        .Range("G9:H38").NumberFormat = """Rp"" #,##0.00"
+        .Range("C9:D38,G9:I38").Font.Color = RGB(64, 64, 64)
+        .Range("I9:I38").WrapText = True
+        .Range("A8:I38").VerticalAlignment = xlVAlignCenter
+        .Rows("9:38").RowHeight = 22
+        .Columns("A").ColumnWidth = 18
+        .Columns("B").ColumnWidth = 30
+        .Columns("C").ColumnWidth = 18
+        .Columns("D").ColumnWidth = 28
+        .Columns("E").ColumnWidth = 13
+        .Columns("F").ColumnWidth = 16
+        .Columns("G").ColumnWidth = 23
+        .Columns("H").ColumnWidth = 20
+        .Columns("I").ColumnWidth = 30
+        .Columns("J").ColumnWidth = 3
+        .Columns("K").ColumnWidth = 18
+
+        .Range("K1:M1").Merge
+        .Range("K1").Value = "AKSI FORM"
+        .Range("K1:M1").Interior.Color = RGB(31, 78, 121)
+        .Range("K1:M1").Font.Color = RGB(255, 255, 255)
+        .Range("K1:M1").Font.Bold = True
+        .Range("K1:M1").HorizontalAlignment = xlCenter
+        AddFormButton ws, "K3", "SIMPAN RESEP", "SimpanResepHPP"
+        AddFormButton ws, "K5", "BERSIHKAN FORM", "BersihkanFormHPP"
+        AddFormButton ws, "K7", "PERBARUI DROPDOWN", "PerbaruiDaftarFORMHPP"
+        .Range("K10:M15").Merge
+        .Range("K10").Value = "PENTING:" & vbCrLf & _
+            "1. Produk harus terdaftar di MASTER PRODUK sebelum resep dibuat." & vbCrLf & _
+            "2. Produk hanya diblokir jika resepnya sudah tersimpan di DETAIL HPP." & vbCrLf & _
+            "3. Resep yang disimpan akan tercatat pada DETAIL HPP." & vbCrLf & _
+            "4. Resep dengan status harga/satuan selain OK tidak dapat disimpan."
+        .Range("K10:M15").WrapText = True
+        .Range("K10:M15").VerticalAlignment = xlVAlignTop
+        .Range("K10:M15").Interior.Color = RGB(242, 242, 242)
+        .Range("K10:M15").Borders.LineStyle = xlContinuous
+
+        .Activate
+        ActiveWindow.FreezePanes = False
+        .Range("A9").Select
+        ActiveWindow.FreezePanes = True
+    End With
+
+    ' Dropdown produk baru.
+    With ws.Range("B3").Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="=HPPProdukBaru"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = "Pilih produk untuk resep"
+        .InputMessage = "Pilih produk yang terdaftar di MASTER PRODUK dan belum memiliki resep di DETAIL HPP."
+        .ErrorTitle = "Produk tidak tersedia"
+        .ErrorMessage = "Pilih produk dari dropdown. Produk yang resepnya sudah tersimpan di DETAIL HPP tidak dapat dipilih kembali."
+        .ShowInput = True
+        .ShowError = True
+    End With
+
+    ' Dropdown jenis komponen dan dropdown nama yang bergantung pada jenisnya.
+    With ws.Range("A" & FORM_FIRST_ROW & ":A" & FORM_LAST_ROW).Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="=HPPJenisKomponen"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .ShowError = True
+        .ErrorTitle = "Jenis tidak valid"
+        .ErrorMessage = "Pilih BAHAN atau PRODUK dari dropdown."
+    End With
+
+    With ws.Range("B" & FORM_FIRST_ROW & ":B" & FORM_LAST_ROW).Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="=INDIRECT(IF($A" & FORM_FIRST_ROW & "=""BAHAN"",""HPPDaftarBahan"",""HPPDaftarProduk""))"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .ShowError = True
+        .ErrorTitle = "Komponen tidak valid"
+        .ErrorMessage = "Pilih nama komponen dari dropdown sesuai JENIS KOMPONEN."
+    End With
+
+    Set EnsureFormSheet = ws
+End Function
+
+Private Sub AddFormButton(ByVal ws As Worksheet, ByVal anchorCell As String, ByVal caption As String, ByVal macroName As String)
+    Dim btn As Object
+    Dim leftPos As Double, topPos As Double
+    leftPos = ws.Range(anchorCell).Left
+    topPos = ws.Range(anchorCell).Top
+    Set btn = ws.Buttons.Add(leftPos, topPos, 145, 27)
+    btn.caption = caption
+    btn.OnAction = "'" & ThisWorkbook.Name & "'!" & macroName
+    btn.Font.Bold = True
+End Sub
+
+Private Function FormStatusFormula(ByVal r As Long) As String
+    Dim s As String, q As String
+    q = Chr$(34)
+    s = "=IF($B" & r & "=" & q & q & "," & q & q & ",IF(OR($E" & r & "=" & q & q & ",NOT(ISNUMBER($E" & r & ")),$E" & r & "<=0,$F" & r & "=" & q & q & ")," & q & "QTY/SATUAN BELUM VALID" & q & ","
+    s = s & "IF($A" & r & "=" & q & "BAHAN" & q & ",IFERROR(IF(OR(INDEX(tbl_BahanBaku[KUANTITAS ISI],MATCH($C" & r & ",tbl_BahanBaku[KODE KOMPONEN],0))<=0,INDEX(tbl_BahanBaku[HARGA BELI TOTAL],MATCH($C" & r & ",tbl_BahanBaku[KODE KOMPONEN],0))<=0)," & q & "HARGA BELUM TERSEDIA" & q & ",IF($F" & r & "<>INDEX(tbl_BahanBaku[SATUAN ISI],MATCH($C" & r & ",tbl_BahanBaku[KODE KOMPONEN],0))," & q & "PERIKSA SATUAN" & q & "," & q & "OK" & q & "))," & q & "BAHAN TIDAK TERDAFTAR" & q & "),"
+    s = s & "IFERROR(IF($C" & r & "=$F$3," & q & "KOMPONEN TIDAK BOLEH DIRINYA SENDIRI" & q & ",IF(INDEX(tbl_Produk[HPP PER UNIT],MATCH($C" & r & ",tbl_Produk[KODE PRODUK],0))<=0," & q & "HPP PRODUK BELUM TERSEDIA" & q & "," & q & "OK" & q & "))," & q & "PRODUK TIDAK TERDAFTAR" & q & "))))"
+    FormStatusFormula = s
+End Function
+
+Private Sub ApplyDetailRowFormulas(ByVal rowRange As Range)
+    Dim q As String
+    q = Chr$(34)
+    rowRange.Cells(1, 2).Formula = "=IFERROR(INDEX(tbl_Produk[NAMA PRODUK],MATCH([@[KODE PRODUK]],tbl_Produk[KODE PRODUK],0))," & q & q & ")"
+    rowRange.Cells(1, 5).Formula = "=IF([@[KODE KOMPONEN]]=" & q & q & "," & q & q & ",IF([@[JENIS KOMPONEN]]=" & q & "BAHAN" & q & ",IFERROR(INDEX(tbl_BahanBaku[KATEGORI HPP],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0))," & q & q & ")," & q & "PRODUK / SUBRESEP" & q & "))"
+    rowRange.Cells(1, 6).Formula = "=IF([@[KODE KOMPONEN]]=" & q & q & "," & q & q & ",IF([@[JENIS KOMPONEN]]=" & q & "BAHAN" & q & ",IFERROR(INDEX(tbl_BahanBaku[NAMA KOMPONEN],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0))," & q & q & "),IFERROR(INDEX(tbl_Produk[NAMA PRODUK],MATCH([@[KODE KOMPONEN]],tbl_Produk[KODE PRODUK],0))," & q & q & ")))"
+    rowRange.Cells(1, 9).Formula = "=IF([@[KODE KOMPONEN]]=" & q & q & "," & q & q & ",IF([@[JENIS KOMPONEN]]=" & q & "BAHAN" & q & ",IFERROR(INDEX(tbl_BahanBaku[HARGA PER SATUAN DASAR],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0))," & q & q & "),IFERROR(INDEX(tbl_Produk[HPP PER UNIT],MATCH([@[KODE KOMPONEN]],tbl_Produk[KODE PRODUK],0))," & q & q & ")))"
+    rowRange.Cells(1, 11).Formula = DetailStatusFormula()
+    rowRange.Cells(1, 10).Formula = "=IF([@[KODE KOMPONEN]]=" & q & q & "," & q & q & ",IF([@[STATUS HARGA]]=" & q & "OK" & q & ",ROUND([@[QTY PAKAI]]*[@[HARGA PER SATUAN DASAR]],2)," & q & q & "))"
+End Sub
+
+Private Function DetailStatusFormula() As String
+    Dim s As String, q As String
+    q = Chr$(34)
+    s = "=IF([@[KODE KOMPONEN]]=" & q & q & "," & q & q & ",IF(OR(NOT(ISNUMBER([@[QTY PAKAI]])),[@[QTY PAKAI]]<=0,[@[SATUAN PAKAI]]=" & q & q & ")," & q & "PERIKSA QTY/SATUAN" & q & ","
+    s = s & "IF([@[JENIS KOMPONEN]]=" & q & "BAHAN" & q & ",IF(COUNTIF(tbl_BahanBaku[KODE KOMPONEN],[@[KODE KOMPONEN]])=0," & q & "BAHAN TIDAK TERDAFTAR" & q & ",IF(OR(IFERROR(INDEX(tbl_BahanBaku[KUANTITAS ISI],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0)),0)<=0,IFERROR(INDEX(tbl_BahanBaku[HARGA BELI TOTAL],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0)),0)<=0)," & q & "HARGA BELUM TERSEDIA" & q & ",IF([@[SATUAN PAKAI]]<>IFERROR(INDEX(tbl_BahanBaku[SATUAN ISI],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0))," & q & q & ")," & q & "PERIKSA SATUAN" & q & "," & q & "OK" & q & "))),"
+    s = s & "IF(COUNTIF(tbl_Produk[KODE PRODUK],[@[KODE KOMPONEN]])=0," & q & "PRODUK TIDAK TERDAFTAR" & q & ",IF(IFERROR(INDEX(tbl_Produk[HPP PER UNIT],MATCH([@[KODE KOMPONEN]],tbl_Produk[KODE PRODUK],0)),0)<=0," & q & "HPP PRODUK BELUM TERSEDIA" & q & "," & q & "OK" & q & ")))))"
+    DetailStatusFormula = s
+End Function
+
+Public Sub BuatFORMHPPdanDETAILHPP()
+    Dim lo As ListObject
+    Dim wsForm As Worksheet
+
+    If Not ValidatePrerequisites() Then Exit Sub
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    On Error GoTo BuildFail
+
+    Set lo = EnsureDetailSheetAndTable()
+    If lo Is Nothing Then GoTo SafeExit
+
+    RefreshHelperLists
+    Set wsForm = EnsureFormSheet()
+    If wsForm Is Nothing Then GoTo SafeExit
+
+    RefreshHelperLists
+    wsForm.Calculate
+    ThisWorkbook.Worksheets(SH_DETAIL).Calculate
+
+    MsgBox "FORM HPP dan DETAIL HPP siap digunakan." & vbCrLf & vbCrLf & _
+           "- tblDetailHPP menyimpan rincian komponen tiap resep." & vbCrLf & _
+           "- Dropdown produk hanya menampilkan produk yang belum memiliki resep di DETAIL HPP." & vbCrLf & _
+           "- Periksa status harga dan satuan sebelum menyimpan resep.", vbInformation, "FORM HPP Siap"
+
+SafeExit:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Exit Sub
+
+BuildFail:
+    MsgBox "Pembuatan form dihentikan karena terjadi error: " & Err.Description & vbCrLf & _
+           "Periksa nama sheet, nama tabel, dan struktur kolom master.", vbExclamation, "FORM HPP"
+    Resume SafeExit
+End Sub
+
+Public Sub PerbaruiPesanFORMHPP()
+    Dim ws As Worksheet
+    Dim dq As String
+    Dim errNum As Long, errDesc As String
+
+    On Error GoTo ErrHandler
+    Set ws = GetWorksheet(SH_FORM)
+    If ws Is Nothing Then
+        MsgBox "Sheet FORM HPP belum dibuat. Buat sheet FORM HPP terlebih dahulu.", vbExclamation, "FORM HPP"
+        Exit Sub
+    End If
+
+    dq = Chr$(34)
+    RefreshHelperLists
+
+    ' Perbarui status produk dan petunjuk tanpa menghapus input form.
+    ws.Range("I3").Formula = "=IF(B3=" & dq & dq & "," & dq & "PILIH PRODUK DARI DROPDOWN" & dq & ",IF(F3=" & dq & dq & "," & dq & "TIDAK ADA PRODUK VALID / PERIKSA MASTER" & dq & ",IF(COUNTIF(HPPProdukBaru,B3)>0," & dq & "SIAP DIINPUT" & dq & "," & dq & "RESEP SUDAH ADA / PILIH PRODUK LAIN" & dq & ")))"
+
+    ws.Range("K10").Value = "PENTING:" & vbCrLf & _
+        "1. Produk harus terdaftar di MASTER PRODUK sebelum resep dibuat." & vbCrLf & _
+        "2. Produk hanya dapat disimpan sekali jika resepnya sudah ada di DETAIL HPP." & vbCrLf & _
+        "3. Pilih komponen dari dropdown, lalu isi qty dan satuan pakai." & vbCrLf & _
+        "4. Status harga/satuan harus OK sebelum menyimpan resep."
+    ws.Range("K10:M15").WrapText = True
+    ws.Range("K10:M15").VerticalAlignment = xlVAlignTop
+
+    With ws.Range("B3").Validation
+        .Delete
+        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="=HPPProdukBaru"
+        .IgnoreBlank = True
+        .InCellDropdown = True
+        .InputTitle = "Pilih produk untuk resep"
+        .InputMessage = "Pilih produk yang terdaftar di MASTER PRODUK dan belum memiliki resep di DETAIL HPP."
+        .ErrorTitle = "Produk tidak tersedia"
+        .ErrorMessage = "Pilih produk dari dropdown. Produk yang resepnya sudah tersimpan di DETAIL HPP tidak dapat dipilih kembali."
+        .ShowInput = True
+        .ShowError = True
+    End With
+
+    ws.Calculate
+    MsgBox "Pesan, petunjuk, dan validasi FORM HPP telah diperbarui." & vbCrLf & _
+           "Input yang belum disimpan dan data DETAIL HPP tidak diubah.", vbInformation, "FORM HPP Diperbarui"
+    Exit Sub
+
+ErrHandler:
+    errNum = Err.Number
+    errDesc = Err.Description
+    MsgBox "Pesan FORM HPP belum berhasil diperbarui." & vbCrLf & _
+           "Nomor error: " & errNum & vbCrLf & _
+           "Pesan: " & errDesc, vbExclamation, "FORM HPP - Diagnostik"
+End Sub
+
+Public Sub PerbaruiDaftarFORMHPP()
+    If Not ValidatePrerequisites() Then Exit Sub
+    On Error GoTo ErrHandler
+    RefreshHelperLists
+    If SheetExists(SH_FORM) Then ThisWorkbook.Worksheets(SH_FORM).Calculate
+    MsgBox "Daftar dropdown produk dan komponen sudah diperbarui.", vbInformation, "FORM HPP"
+    Exit Sub
+ErrHandler:
+    MsgBox "Gagal memperbarui dropdown: " & Err.Description, vbExclamation, "FORM HPP"
+End Sub
+
+Public Sub BersihkanFormHPP()
+    Dim ws As Worksheet
+    Set ws = GetWorksheet(SH_FORM)
+    If ws Is Nothing Then
+        MsgBox "Sheet FORM HPP belum dibuat.", vbExclamation, "FORM HPP"
+        Exit Sub
+    End If
+
+    If MsgBox("Bersihkan pilihan produk dan seluruh input komponen yang belum disimpan? Data di DETAIL HPP tidak akan dihapus.", vbYesNo + vbQuestion, "Bersihkan Form") <> vbYes Then Exit Sub
+
+    ws.Range("B3:D3").ClearContents  ' Bersihkan seluruh area merge B3:D3
+    ws.Range("A" & FORM_FIRST_ROW & ":B" & FORM_LAST_ROW).ClearContents
+    ws.Range("E" & FORM_FIRST_ROW & ":F" & FORM_LAST_ROW).ClearContents
+    ws.Calculate
+End Sub
+
+Public Sub SimpanResepHPP()
+    Dim wsF As Worksheet
+    Dim loP As ListObject, loB As ListObject, loD As ListObject
+    Dim prodName As String, prodCode As String
+    Dim r As Long, countParts As Long, rowTouched As Boolean
+    Dim arrRows() As Long, idx As Long
+    Dim compType As String, compName As String, compCode As String, unitName As String, statusText As String
+    Dim qty As Double
+    Dim newListRow As ListRow
+    Dim originalCount As Long, addedCount As Long
+    Dim saveStage As String
+    Dim saveErrNumber As Long, saveErrDescription As String
+    Dim saveCommitted As Boolean
+
+    If Not ValidatePrerequisites() Then Exit Sub
+    Set wsF = GetWorksheet(SH_FORM)
+    Set loP = GetTable(SH_MASTER_PRODUK, TBL_PRODUK)
+    Set loB = GetTable(SH_MASTER_BAHAN, TBL_BAHAN)
+    Set loD = GetTable(SH_DETAIL, TBL_DETAIL)
+
+    If wsF Is Nothing Or loD Is Nothing Then
+        MsgBox "FORM HPP atau tblDetailHPP belum dibuat. Jalankan BuatFORMHPPdanDETAILHPP dahulu.", vbExclamation, "Simpan Resep"
+        Exit Sub
+    End If
+
+    On Error GoTo PreSaveFail
+    RefreshHelperLists
+    wsF.Calculate
+
+    prodName = Trim$(CStr(wsF.Range("B3").Value))
+    prodCode = Trim$(CStr(wsF.Range("F3").Value))
+
+    If Len(prodName) = 0 Or Len(prodCode) = 0 Then
+        MsgBox "Pilih NAMA PRODUK dari dropdown terlebih dahulu.", vbExclamation, "Simpan Resep"
+        Exit Sub
+    End If
+
+    If Not ProductCodeExistsInMaster(prodCode) Then
+        MsgBox "Kode produk tidak ditemukan di tbl_Produk. Tambahkan produk terlebih dahulu ke MASTER PRODUK.", vbExclamation, "Simpan Resep"
+        Exit Sub
+    End If
+
+    If IsProductAlreadyRegistered(prodCode, loD) Then
+        MsgBox "Produk " & prodCode & " sudah memiliki resep di DETAIL HPP. Resep baru tidak disimpan untuk mencegah duplikasi.", vbExclamation, "Simpan Resep"
+        RefreshHelperLists
+        Exit Sub
+    End If
+
+    countParts = 0
+    ReDim arrRows(1 To FORM_LAST_ROW - FORM_FIRST_ROW + 1)
+
+    For r = FORM_FIRST_ROW To FORM_LAST_ROW
+        compType = UCase$(Trim$(CStr(wsF.Cells(r, "A").Value)))
+        compName = Trim$(CStr(wsF.Cells(r, "B").Value))
+        unitName = Trim$(CStr(wsF.Cells(r, "F").Value))
+        rowTouched = (Len(compType) > 0 Or Len(compName) > 0 Or Len(Trim$(CStr(wsF.Cells(r, "E").Value))) > 0 Or Len(unitName) > 0)
+
+        If rowTouched Then
+            If compType <> "BAHAN" And compType <> "PRODUK" Then
+                MsgBox "Baris " & r & ": pilih JENIS KOMPONEN (BAHAN/PRODUK).", vbExclamation, "Simpan Resep"
+                Exit Sub
+            End If
+            If Len(compName) = 0 Then
+                MsgBox "Baris " & r & ": pilih NAMA KOMPONEN.", vbExclamation, "Simpan Resep"
+                Exit Sub
+            End If
+            If Not IsNumeric(wsF.Cells(r, "E").Value) Then
+                MsgBox "Baris " & r & ": QTY PAKAI harus berupa angka lebih besar dari nol.", vbExclamation, "Simpan Resep"
+                Exit Sub
+            End If
+            qty = CDbl(wsF.Cells(r, "E").Value)
+            If qty <= 0 Then
+                MsgBox "Baris " & r & ": QTY PAKAI harus lebih besar dari nol.", vbExclamation, "Simpan Resep"
+                Exit Sub
+            End If
+            If Len(unitName) = 0 Then
+                MsgBox "Baris " & r & ": SATUAN PAKAI belum diisi.", vbExclamation, "Simpan Resep"
+                Exit Sub
+            End If
+
+            compCode = Trim$(CStr(wsF.Cells(r, "C").Value))
+            statusText = Trim$(CStr(wsF.Cells(r, "I").Value))
+            If Len(compCode) = 0 Then
+                MsgBox "Baris " & r & ": kode komponen tidak ditemukan. Periksa nama komponen dan master sumber.", vbExclamation, "Simpan Resep"
+                Exit Sub
+            End If
+            If StrComp(compCode, prodCode, vbTextCompare) = 0 Then
+                MsgBox "Baris " & r & ": produk tidak boleh menggunakan dirinya sendiri sebagai komponen.", vbExclamation, "Simpan Resep"
+                Exit Sub
+            End If
+            If statusText <> "OK" Then
+                MsgBox "Baris " & r & " belum valid: " & statusText & vbCrLf & _
+                       "Perbaiki harga, qty, atau satuan sebelum menyimpan resep.", vbExclamation, "Simpan Resep"
+                Exit Sub
+            End If
+
+            countParts = countParts + 1
+            arrRows(countParts) = r
+        End If
+    Next r
+
+    If countParts = 0 Then
+        MsgBox "Masukkan setidaknya satu komponen resep sebelum menyimpan.", vbExclamation, "Simpan Resep"
+        Exit Sub
+    End If
+
+    If MsgBox("Simpan resep untuk:" & vbCrLf & prodName & " (" & prodCode & ")" & vbCrLf & _
+               "Jumlah komponen: " & countParts & vbCrLf & vbCrLf & _
+               "Data komponen akan ditambahkan ke DETAIL HPP.", _
+               vbYesNo + vbQuestion, "Konfirmasi Simpan Resep") <> vbYes Then Exit Sub
+
+    originalCount = loD.ListRows.Count
+    addedCount = 0
+    saveCommitted = False
+    saveStage = "menambahkan data ke tblDetailHPP"
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    On Error GoTo SaveFail
+
+    For idx = 1 To countParts
+        r = arrRows(idx)
+        saveStage = "menambahkan baris komponen " & idx & " dari " & countParts
+        Set newListRow = loD.ListRows.Add
+        addedCount = addedCount + 1
+
+        saveStage = "mengisi kode produk, jenis komponen, kode komponen, qty, dan satuan pada baris " & idx
+        With newListRow.Range
+            .Cells(1, 1).Value = prodCode
+            .Cells(1, 3).Value = UCase$(Trim$(CStr(wsF.Cells(r, "A").Value)))
+            .Cells(1, 4).Value = Trim$(CStr(wsF.Cells(r, "C").Value))
+            .Cells(1, 7).Value = CDbl(wsF.Cells(r, "E").Value)
+            .Cells(1, 8).Value = Trim$(CStr(wsF.Cells(r, "F").Value))
+        End With
+
+        saveStage = "memasang rumus otomatis pada baris komponen " & idx
+        ApplyDetailRowFormulas newListRow.Range
+    Next idx
+
+    saveStage = "menghitung ulang tabel DETAIL HPP"
+    loD.Parent.Calculate
+    saveCommitted = True
+
+    saveStage = "memperbarui dropdown sesudah penyimpanan"
+    RefreshHelperLists
+    wsF.Calculate
+
+    saveStage = "membersihkan form sesudah penyimpanan berhasil"
+    wsF.Range("B3:D3").ClearContents  ' Bersihkan seluruh area merge B3:D3
+    wsF.Range("A" & FORM_FIRST_ROW & ":B" & FORM_LAST_ROW).ClearContents
+    wsF.Range("E" & FORM_FIRST_ROW & ":F" & FORM_LAST_ROW).ClearContents
+    wsF.Calculate
+
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+
+    MsgBox "Resep berhasil disimpan ke DETAIL HPP." & vbCrLf & _
+           "Kode produk: " & prodCode & vbCrLf & _
+           "Komponen tersimpan: " & countParts & vbCrLf & vbCrLf & _
+           "Periksa rincian yang tersimpan pada tabel DETAIL HPP.", vbInformation, "Simpan Resep Berhasil"
+    Exit Sub
+
+PreSaveFail:
+    saveErrNumber = Err.Number
+    saveErrDescription = Err.Description
+    MsgBox "Proses berhenti sebelum data disimpan." & vbCrLf & _
+           "Tahap: memuat daftar produk/komponen atau menghitung form." & vbCrLf & _
+           "Nomor error: " & saveErrNumber & vbCrLf & _
+           "Pesan: " & saveErrDescription, vbExclamation, "FORM HPP - Diagnostik"
+    Exit Sub
+
+SaveFail:
+    ' Simpan detail error SEBELUM rollback, sebab operasi cleanup dapat mengosongkan Err.Description.
+    saveErrNumber = Err.Number
+    saveErrDescription = Err.Description
+
+    On Error Resume Next
+    If Not saveCommitted Then
+        Do While loD.ListRows.Count > originalCount
+            loD.ListRows(loD.ListRows.Count).Delete
+        Loop
+    End If
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    On Error GoTo 0
+
+    If saveCommitted Then
+        MsgBox "Baris resep sudah masuk ke DETAIL HPP, tetapi proses lanjutan gagal." & vbCrLf & _
+               "Data tidak dihapus karena sudah tersimpan." & vbCrLf & _
+               "Tahap: " & saveStage & vbCrLf & _
+               "Nomor error: " & saveErrNumber & vbCrLf & _
+               "Pesan: " & saveErrDescription, vbExclamation, "FORM HPP - Diagnostik"
+    Else
+        MsgBox "Penyimpanan gagal. Baris baru yang sempat ditambahkan telah dibatalkan." & vbCrLf & _
+               "Tahap: " & saveStage & vbCrLf & _
+               "Nomor error: " & saveErrNumber & vbCrLf & _
+               "Pesan: " & saveErrDescription & vbCrLf & vbCrLf & _
+               "Kirimkan nomor dan pesan error ini agar penyebabnya dapat diperbaiki.", vbExclamation, "FORM HPP - Diagnostik"
+    End If
+End Sub
+
+Private Function ProductCodeExistsInMaster(ByVal productCode As String) As Boolean
+    Dim loP As ListObject
+    Dim f As Range
+    Set loP = GetTable(SH_MASTER_PRODUK, TBL_PRODUK)
+    If loP Is Nothing Then Exit Function
+    If loP.DataBodyRange Is Nothing Then Exit Function
+    Set f = loP.ListColumns("KODE PRODUK").DataBodyRange.Find(What:=productCode, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
+    ProductCodeExistsInMaster = Not f Is Nothing
+End Function
+
+==============================================================================
+
+COMPONENT: modDiagnostikWorkbookHPP1 | TYPE=STANDARD MODULE | LINES=329
+------------------------------------------------------------------------------
+Option Explicit
+
+' =====================================================================
+' DIAGNOSTIK WORKBOOK HPP
+' Mengekspor seluruh sheet, semua sel terisi/berformula, formula,
+' Excel Table, defined names, data validation, dan tombol/shapes ke TXT.
+' Macro ini bersifat BACA SAJA: tidak mengubah nilai, formula, atau sheet.
+' =====================================================================
+
+Public Sub ExportSeluruhStrukturDanFormulaKeTXT()
+    Dim wb As Workbook
+    Dim fso As Object
+    Dim ts As Object
+    Dim ws As Worksheet
+    Dim lo As ListObject
+    Dim lc As ListColumn
+    Dim nm As Name
+    Dim shp As Shape
+    Dim ur As Range
+    Dim c As Range
+    Dim savePath As Variant
+    Dim stepName As String
+    Dim totalSheets As Long
+    Dim totalCells As Long
+    Dim totalFormulas As Long
+    Dim totalValidations As Long
+    Dim sheetCells As Long
+    Dim sheetFormulas As Long
+    Dim sheetValidations As Long
+    Dim visibilityText As String
+    Dim tableRows As Long
+    Dim i As Long
+    Dim s As String
+    Dim vText As String
+    Dim fText As String
+    Dim flText As String
+    Dim valText As String
+    Dim hasFormula As Boolean
+    Dim hasValue As Boolean
+    Dim hasValidation As Boolean
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    On Error GoTo FatalError
+    stepName = "memilih workbook"
+    Set wb = ThisWorkbook
+
+    savePath = Application.GetSaveAsFilename( _
+        InitialFileName:="Diagnostik_Lengkap_" & CleanFileName(wb.Name) & ".txt", _
+        FileFilter:="Text Files (*.txt), *.txt", _
+        Title:="Simpan laporan diagnostik workbook")
+
+    If VarType(savePath) = vbBoolean Then
+        If savePath = False Then Exit Sub
+    End If
+    If LCase$(Right$(CStr(savePath), 4)) <> ".txt" Then savePath = CStr(savePath) & ".txt"
+
+    stepName = "membuat file laporan"
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set ts = fso.CreateTextFile(CStr(savePath), True, True) ' Unicode
+
+    totalSheets = wb.Worksheets.Count
+    ts.WriteLine "LAPORAN DIAGNOSTIK LENGKAP WORKBOOK EXCEL"
+    ts.WriteLine "Tujuan: memeriksa semua sheet, seluruh formula, Excel Table, validasi, dan referensi workbook."
+    ts.WriteLine "Tanggal laporan: " & Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    ts.WriteLine "Nama file: " & wb.Name
+    ts.WriteLine "Lokasi file: " & wb.FullName
+    ts.WriteLine "Jumlah sheet: " & totalSheets
+    ts.WriteLine "Catatan: laporan ini membaca data; tidak mengubah workbook. Formula diekspor dalam format Formula dan FormulaLocal bila tersedia."
+    ts.WriteLine String$(100, "=")
+    ts.WriteLine "BAGIAN 1 - RINGKASAN SHEET"
+
+    For Each ws In wb.Worksheets
+        Select Case ws.Visible
+            Case xlSheetVisible: visibilityText = "Visible"
+            Case xlSheetHidden: visibilityText = "Hidden"
+            Case xlSheetVeryHidden: visibilityText = "VeryHidden"
+            Case Else: visibilityText = "Unknown (" & CStr(ws.Visible) & ")"
+        End Select
+        Set ur = ws.UsedRange
+        ts.WriteLine "SHEET: " & ws.Name & " | CodeName=" & ws.CodeName & _
+                     " | Visibility=" & visibilityText & _
+                     " | UsedRange=" & ur.Address(False, False) & _
+                     " | Rows=" & ur.Rows.Count & " | Columns=" & ur.Columns.Count
+    Next ws
+
+    ts.WriteLine vbCrLf & String$(100, "=")
+    ts.WriteLine "BAGIAN 2 - DETAIL SETIAP SHEET"
+    ts.WriteLine "Untuk sel yang memiliki formula, formula tetap dilaporkan walaupun hasilnya kosong."
+    ts.WriteLine "Sel kosong biasa dilewati; sel kosong yang memiliki validasi tetap dilaporkan di bagian validasi."
+
+    For Each ws In wb.Worksheets
+        stepName = "membaca sheet " & ws.Name
+        Set ur = ws.UsedRange
+        sheetCells = 0
+        sheetFormulas = 0
+        sheetValidations = 0
+
+        ts.WriteLine vbCrLf & String$(100, "-")
+        ts.WriteLine "SHEET: " & ws.Name
+        ts.WriteLine "CodeName: " & ws.CodeName
+        ts.WriteLine "Visibility: " & CStr(ws.Visible)
+        ts.WriteLine "UsedRange: " & ur.Address(False, False)
+        ts.WriteLine String$(70, "-")
+        ts.WriteLine "BAGIAN 2A - EXCEL TABLE / LISTOBJECT"
+
+        If ws.ListObjects.Count = 0 Then
+            ts.WriteLine "  Tidak ada Excel Table pada sheet ini."
+        Else
+            For Each lo In ws.ListObjects
+                If lo.DataBodyRange Is Nothing Then
+                    tableRows = 0
+                Else
+                    tableRows = lo.DataBodyRange.Rows.Count
+                End If
+                ts.WriteLine "  TABLE: " & lo.Name & " | Range=" & lo.Range.Address(False, False) & _
+                             " | DataRows=" & tableRows & " | Columns=" & lo.ListColumns.Count
+                For Each lc In lo.ListColumns
+                    ts.WriteLine "    Kolom " & lc.Index & ": " & lc.Name
+                Next lc
+            Next lo
+        End If
+
+        ts.WriteLine vbCrLf & "BAGIAN 2B - SEL BERISI DATA ATAU FORMULA"
+        ts.WriteLine "Format: CELL | VALUE2 | DISPLAY | FORMULA | FORMULA_LOCAL"
+
+        For Each c In ur.Cells
+            ' Jika sel adalah bagian dari merged area tetapi bukan sel kiri-atas,
+            ' lewati karena isi/rumusnya hanya dimiliki sel kiri-atas.
+            If c.MergeCells Then
+                If c.Address(False, False) <> c.MergeArea.Cells(1, 1).Address(False, False) Then
+                    GoTo NextCell
+                End If
+            End If
+
+            hasFormula = False
+            hasValue = False
+            On Error Resume Next
+            hasFormula = c.hasFormula
+            If Err.Number <> 0 Then Err.Clear: hasFormula = False
+            If IsError(c.Value2) Then
+                hasValue = True
+            ElseIf IsEmpty(c.Value2) Then
+                hasValue = False
+            Else
+                hasValue = (Len(CStr(c.Value2)) > 0)
+            End If
+            On Error GoTo FatalError
+
+            If hasFormula Or hasValue Then
+                vText = SafeValue2(c)
+                valText = SafeDisplay(c)
+                fText = SafeFormula(c, False)
+                flText = SafeFormula(c, True)
+                s = "  CELL " & c.Address(False, False) & _
+                    " | VALUE2=" & vText & _
+                    " | DISPLAY=" & valText
+                If hasFormula Then
+                    s = s & " | FORMULA=" & fText & " | FORMULA_LOCAL=" & flText
+                    sheetFormulas = sheetFormulas + 1
+                    totalFormulas = totalFormulas + 1
+                End If
+                ts.WriteLine s
+                sheetCells = sheetCells + 1
+                totalCells = totalCells + 1
+            End If
+
+            ' Melaporkan validasi termasuk pada sel input yang saat ini kosong.
+            valText = SafeValidation(c)
+            If Len(valText) > 0 Then
+                ts.WriteLine "  VALIDATION " & c.Address(False, False) & " | " & valText
+                sheetValidations = sheetValidations + 1
+                totalValidations = totalValidations + 1
+            End If
+NextCell:
+        Next c
+
+        ts.WriteLine "  RINGKASAN SHEET: sel terlapor=" & sheetCells & _
+                     " | jumlah formula=" & sheetFormulas & _
+                     " | validasi data=" & sheetValidations
+
+        ts.WriteLine vbCrLf & "BAGIAN 2C - SHAPES / TOMBOL DAN MACRO ACTION"
+        If ws.Shapes.Count = 0 Then
+            ts.WriteLine "  Tidak ada shape."
+        Else
+            For Each shp In ws.Shapes
+                ts.WriteLine "  SHAPE: " & shp.Name & " | Type=" & CStr(shp.Type) & _
+                             " | OnAction=" & SafeShapeAction(shp)
+            Next shp
+        End If
+    Next ws
+
+    ts.WriteLine vbCrLf & String$(100, "=")
+    ts.WriteLine "BAGIAN 3 - WORKBOOK DEFINED NAMES / NAMED RANGES"
+    If wb.Names.Count = 0 Then
+        ts.WriteLine "Tidak ada defined names."
+    Else
+        For Each nm In wb.Names
+            ts.WriteLine "  NAME: " & nm.Name & " | REFERS_TO=" & CleanText(nm.RefersTo)
+        Next nm
+    End If
+
+    ts.WriteLine vbCrLf & String$(100, "=")
+    ts.WriteLine "BAGIAN 4 - RINGKASAN TOTAL"
+    ts.WriteLine "Jumlah sheet: " & totalSheets
+    ts.WriteLine "Jumlah sel terlapor (berisi nilai/rumus): " & totalCells
+    ts.WriteLine "Jumlah sel formula: " & totalFormulas
+    ts.WriteLine "Jumlah validasi data: " & totalValidations
+    ts.WriteLine vbCrLf & "SELESAI. Laporan ini tidak mengubah workbook."
+
+    ts.Close
+    Set ts = Nothing
+    Set fso = Nothing
+    MsgBox "Laporan diagnostik berhasil dibuat:" & vbCrLf & CStr(savePath) & vbCrLf & vbCrLf & _
+           "Jumlah sheet: " & totalSheets & vbCrLf & _
+           "Sel terlapor: " & totalCells & vbCrLf & _
+           "Formula: " & totalFormulas & vbCrLf & _
+           "Validasi data: " & totalValidations, vbInformation, "Diagnostik Workbook Selesai"
+    Exit Sub
+
+FatalError:
+    errorNumber = Err.Number
+    errorDescription = Err.Description
+    On Error Resume Next
+    If Not ts Is Nothing Then ts.Close
+    Set ts = Nothing
+    Set fso = Nothing
+    MsgBox "Gagal membuat laporan diagnostik." & vbCrLf & _
+           "Tahap: " & stepName & vbCrLf & _
+           "Nomor error: " & errorNumber & vbCrLf & _
+           "Pesan: " & errorDescription, vbExclamation, "Diagnostik Workbook"
+End Sub
+
+Private Function SafeValue2(ByVal c As Range) As String
+    On Error GoTo Fail
+    If IsError(c.Value) Then
+        SafeValue2 = "[ERROR: " & CleanText(c.Text) & "]"
+    ElseIf IsEmpty(c.Value2) Then
+        SafeValue2 = "(kosong)"
+    Else
+        SafeValue2 = CleanText(CStr(c.Value2))
+    End If
+    Exit Function
+Fail:
+    SafeValue2 = "[VALUE TIDAK DAPAT DIBACA]"
+End Function
+
+Private Function SafeDisplay(ByVal c As Range) As String
+    On Error GoTo Fail
+    SafeDisplay = CleanText(CStr(c.Text))
+    Exit Function
+Fail:
+    SafeDisplay = "[DISPLAY TIDAK DAPAT DIBACA]"
+End Function
+
+Private Function SafeFormula(ByVal c As Range, ByVal useLocal As Boolean) As String
+    On Error GoTo Fail
+    If Not c.hasFormula Then
+        SafeFormula = "(tidak ada)"
+    ElseIf useLocal Then
+        SafeFormula = CleanText(CStr(c.FormulaLocal))
+    Else
+        SafeFormula = CleanText(CStr(c.Formula))
+    End If
+    Exit Function
+Fail:
+    SafeFormula = "[FORMULA TIDAK DAPAT DIBACA]"
+End Function
+
+Private Function SafeValidation(ByVal c As Range) As String
+    Dim vType As Variant
+    Dim vAlert As Variant
+    Dim f1 As String
+    Dim f2 As String
+    On Error GoTo NoValidation
+    vType = c.Validation.Type
+    vAlert = c.Validation.AlertStyle
+    f1 = CStr(c.Validation.Formula1)
+    f2 = CStr(c.Validation.Formula2)
+    SafeValidation = "Type=" & CStr(vType) & _
+                     "; AlertStyle=" & CStr(vAlert) & _
+                     "; Formula1=" & CleanText(f1) & _
+                     "; Formula2=" & CleanText(f2)
+    Exit Function
+NoValidation:
+    Err.Clear
+    SafeValidation = ""
+End Function
+
+Private Function SafeShapeAction(ByVal shp As Shape) As String
+    On Error GoTo Fail
+    If Len(shp.OnAction) = 0 Then
+        SafeShapeAction = "(tidak ada)"
+    Else
+        SafeShapeAction = CleanText(shp.OnAction)
+    End If
+    Exit Function
+Fail:
+    SafeShapeAction = "[OnAction tidak dapat dibaca]"
+End Function
+
+Private Function CleanText(ByVal rawText As String) As String
+    Dim s As String
+    s = rawText
+    s = Replace(s, vbCrLf, "\n")
+    s = Replace(s, vbCr, "\n")
+    s = Replace(s, vbLf, "\n")
+    s = Replace(s, vbTab, "\t")
+    CleanText = s
+End Function
+
+Private Function CleanFileName(ByVal rawName As String) As String
+    Dim s As String
+    s = rawName
+    s = Replace(s, ".xlsm", "")
+    s = Replace(s, ".xlsx", "")
+    s = Replace(s, ".xlsb", "")
+    s = Replace(s, ".xls", "")
+    s = Replace(s, "\", "_")
+    s = Replace(s, "/", "_")
+    s = Replace(s, ":", "_")
+    s = Replace(s, "*", "_")
+    s = Replace(s, "?", "_")
+    s = Replace(s, Chr$(34), "_")
+    s = Replace(s, "<", "_")
+    s = Replace(s, ">", "_")
+    s = Replace(s, "|", "_")
+    CleanFileName = s
+End Function
+
+==============================================================================
+
+COMPONENT: modPerbaikiFormulaDetailHPP | TYPE=STANDARD MODULE | LINES=219
+------------------------------------------------------------------------------
+Option Explicit
+
+' Alihkan HPP MASTER PRODUK ke tblDetailHPP.
+' Semua komponen resep menjadi bahan dari MASTER BAHAN BAKU.
+' HPP lama dan HPP (KATEGORI) sengaja tidak diubah.
+
+Public Sub PerbaikiRumusMasterProdukPakaiDetailHPP()
+    Dim wb As Workbook
+    Dim wsProduk As Worksheet, wsBahan As Worksheet
+    Dim wsDetail As Worksheet, wsForm As Worksheet, wsList As Worksheet
+    Dim loProduk As ListObject, loBahan As ListObject, loDetail As ListObject
+    Dim c As Range, rngJenis As Range
+    Dim formulaHPP As String, formulaLaba As String, formulaMargin As String
+    Dim formulaKategori As String, formulaNama As String, formulaHarga As String
+    Dim formulaBiaya As String, formulaStatus As String
+    Dim missingCount As Long, productCount As Long
+    Dim r As Long, oldCalc As XlCalculation
+    Dim oldEvents As Boolean, oldScreen As Boolean
+    Dim currentStage As String, answer As VbMsgBoxResult
+    Dim appStateSaved As Boolean
+    Dim savedErrNum As Long, savedErrDesc As String
+
+    On Error GoTo HandleError
+    currentStage = "memeriksa struktur workbook"
+    Set wb = ThisWorkbook
+    Set wsProduk = wb.Worksheets("MASTER PRODUK")
+    Set wsBahan = wb.Worksheets("MASTER BAHAN BAKU")
+    Set wsDetail = wb.Worksheets("DETAIL HPP")
+    Set wsForm = wb.Worksheets("FORM HPP")
+    Set wsList = wb.Worksheets("_LIST_HPP")
+    Set loProduk = wsProduk.ListObjects("tbl_Produk")
+    Set loBahan = wsBahan.ListObjects("tbl_BahanBaku")
+    Set loDetail = wsDetail.ListObjects("tblDetailHPP")
+
+    If loProduk.DataBodyRange Is Nothing Then
+        MsgBox "tbl_Produk belum memiliki baris produk.", vbExclamation, "Perbaikan Rumus HPP"
+        Exit Sub
+    End If
+
+    If Not HasColumn(loProduk, "KODE PRODUK") Or Not HasColumn(loProduk, "HPP PER UNIT") _
+       Or Not HasColumn(loProduk, "LABA PER UNIT (RP)") Or Not HasColumn(loProduk, "MARGIN LABA (%)") _
+       Or Not HasColumn(loProduk, "HARGA JUAL OFFLINE") Then
+        MsgBox "Kolom wajib di tbl_Produk tidak lengkap. Tidak ada perubahan yang dilakukan.", vbCritical, "Perbaikan Rumus HPP"
+        Exit Sub
+    End If
+
+    If Not HasColumn(loDetail, "KODE PRODUK") Or Not HasColumn(loDetail, "JENIS KOMPONEN") _
+       Or Not HasColumn(loDetail, "KODE KOMPONEN") Or Not HasColumn(loDetail, "KATEGORI HPP") _
+       Or Not HasColumn(loDetail, "NAMA KOMPONEN") Or Not HasColumn(loDetail, "QTY PAKAI") _
+       Or Not HasColumn(loDetail, "SATUAN PAKAI") Or Not HasColumn(loDetail, "HARGA PER SATUAN DASAR") _
+       Or Not HasColumn(loDetail, "BIAYA PEMAKAIAN") Or Not HasColumn(loDetail, "STATUS HARGA") Then
+        MsgBox "Kolom wajib di tblDetailHPP tidak lengkap. Tidak ada perubahan yang dilakukan.", vbCritical, "Perbaikan Rumus HPP"
+        Exit Sub
+    End If
+
+    If Not HasColumn(loBahan, "KODE KOMPONEN") Or Not HasColumn(loBahan, "KATEGORI HPP") _
+       Or Not HasColumn(loBahan, "NAMA KOMPONEN") Or Not HasColumn(loBahan, "KUANTITAS ISI") _
+       Or Not HasColumn(loBahan, "SATUAN ISI") Or Not HasColumn(loBahan, "HARGA BELI TOTAL") _
+       Or Not HasColumn(loBahan, "HARGA PER SATUAN DASAR") Then
+        MsgBox "Kolom wajib di tbl_BahanBaku tidak lengkap. Tidak ada perubahan yang dilakukan.", vbCritical, "Perbaikan Rumus HPP"
+        Exit Sub
+    End If
+
+    ' Hindari mengubah formula saat masih ada data resep sementara pada form.
+    If Application.WorksheetFunction.CountA(wsForm.Range("B9:B38")) > 0 _
+       Or Application.WorksheetFunction.CountA(wsForm.Range("E9:F38")) > 0 Then
+        MsgBox "FORM HPP masih berisi input komponen. Simpan atau bersihkan form terlebih dahulu, lalu jalankan macro ini lagi. Tidak ada perubahan yang dilakukan.", vbExclamation, "Perbaikan Rumus HPP"
+        Exit Sub
+    End If
+
+    ' Rancangan terbaru memakai bahan langsung; tidak boleh ada jenis PRODUK di detail.
+    If Not loDetail.ListColumns("JENIS KOMPONEN").DataBodyRange Is Nothing Then
+        Set rngJenis = loDetail.ListColumns("JENIS KOMPONEN").DataBodyRange
+        For Each c In rngJenis.Cells
+            If Len(Trim$(CStr(c.Value2))) > 0 Then
+                If UCase$(Trim$(CStr(c.Value2))) <> "BAHAN" Then
+                    MsgBox "Dibatalkan. Ditemukan JENIS KOMPONEN selain BAHAN pada DETAIL HPP, sel " & c.Address(False, False) & ". Periksa data tersebut dahulu. Tidak ada perubahan yang dilakukan.", vbExclamation, "Perbaikan Rumus HPP"
+                    Exit Sub
+                End If
+            End If
+        Next c
+    End If
+
+    currentStage = "menghitung produk yang belum memiliki rincian di DETAIL HPP"
+    missingCount = 0
+    productCount = 0
+    For Each c In loProduk.ListColumns("KODE PRODUK").DataBodyRange.Cells
+        If Len(Trim$(CStr(c.Value2))) > 0 Then
+            productCount = productCount + 1
+            If Not ProductHasDetails(loDetail, CStr(c.Value2)) Then missingCount = missingCount + 1
+        End If
+    Next c
+
+    answer = MsgBox( _
+        "Macro akan mengalihkan HPP PER UNIT, LABA PER UNIT, dan MARGIN LABA di MASTER PRODUK ke perhitungan DETAIL HPP." & vbCrLf & vbCrLf & _
+        "Produk terdaftar: " & productCount & vbCrLf & _
+        "Produk tanpa rincian di DETAIL HPP: " & missingCount & vbCrLf & vbCrLf & _
+        "Produk tanpa resep valid akan menampilkan HPP, laba, dan margin kosong sampai resepnya disimpan. Komisi, promo, dan harga online tidak diubah." & vbCrLf & vbCrLf & _
+        "Lanjutkan? Pastikan salinan cadangan workbook sudah dibuat.", _
+        vbYesNo + vbQuestion + vbDefaultButton2, "Konfirmasi Pengalihan Rumus HPP")
+    If answer <> vbYes Then Exit Sub
+
+    oldCalc = Application.Calculation
+    oldEvents = Application.EnableEvents
+    oldScreen = Application.ScreenUpdating
+    appStateSaved = True
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+
+    ' Formula kolom DETAIL HPP tidak lagi merujuk ke HPP PER UNIT di MASTER PRODUK.
+    ' Ini menghindari referensi melingkar setelah total HPP dialihkan ke DETAIL HPP.
+    currentStage = "memperbarui formula DETAIL HPP"
+    formulaKategori = "=IF([@[KODE KOMPONEN]]="""","""",IFERROR(INDEX(tbl_BahanBaku[KATEGORI HPP],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0)),""""))"
+    formulaNama = "=IF([@[KODE KOMPONEN]]="""","""",IFERROR(INDEX(tbl_BahanBaku[NAMA KOMPONEN],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0)),""""))"
+    formulaHarga = "=IF([@[KODE KOMPONEN]]="""","""",IFERROR(INDEX(tbl_BahanBaku[HARGA PER SATUAN DASAR],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0)),""""))"
+    formulaBiaya = "=IF([@[KODE KOMPONEN]]="""","""",IF([@[STATUS HARGA]]=""OK"",ROUND([@[QTY PAKAI]]*[@[HARGA PER SATUAN DASAR]],2),""""))"
+    formulaStatus = "=IF([@[KODE KOMPONEN]]="""","""",IF(OR(NOT(ISNUMBER([@[QTY PAKAI]])),[@[QTY PAKAI]]<=0,[@[SATUAN PAKAI]]=""""),""PERIKSA QTY/SATUAN"",IF(COUNTIF(tbl_BahanBaku[KODE KOMPONEN],[@[KODE KOMPONEN]])=0,""BAHAN TIDAK TERDAFTAR"",IF(OR(IFERROR(INDEX(tbl_BahanBaku[KUANTITAS ISI],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0)),0)<=0,IFERROR(INDEX(tbl_BahanBaku[HARGA BELI TOTAL],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0)),0)<=0),""HARGA BELUM TERSEDIA"",IF([@[SATUAN PAKAI]]<>IFERROR(INDEX(tbl_BahanBaku[SATUAN ISI],MATCH([@[KODE KOMPONEN]],tbl_BahanBaku[KODE KOMPONEN],0)),""""),""PERIKSA SATUAN"",""OK"")))))"
+
+    If Not loDetail.ListColumns("KATEGORI HPP").DataBodyRange Is Nothing Then loDetail.ListColumns("KATEGORI HPP").DataBodyRange.Formula = formulaKategori
+    If Not loDetail.ListColumns("NAMA KOMPONEN").DataBodyRange Is Nothing Then loDetail.ListColumns("NAMA KOMPONEN").DataBodyRange.Formula = formulaNama
+    If Not loDetail.ListColumns("HARGA PER SATUAN DASAR").DataBodyRange Is Nothing Then loDetail.ListColumns("HARGA PER SATUAN DASAR").DataBodyRange.Formula = formulaHarga
+    If Not loDetail.ListColumns("BIAYA PEMAKAIAN").DataBodyRange Is Nothing Then loDetail.ListColumns("BIAYA PEMAKAIAN").DataBodyRange.Formula = formulaBiaya
+    If Not loDetail.ListColumns("STATUS HARGA").DataBodyRange Is Nothing Then loDetail.ListColumns("STATUS HARGA").DataBodyRange.Formula = formulaStatus
+
+    ' Batasi jenis komponen pada form hanya ke BAHAN.
+    currentStage = "membatasi dropdown jenis komponen dan memperbarui formula form"
+    wsList.Range("D2").Value2 = "BAHAN"
+    wsList.Range("D3").ClearContents
+    On Error Resume Next
+    wb.Names("HPPJenisKomponen").RefersTo = "='_LIST_HPP'!$D$2:$D$2"
+    If Err.Number <> 0 Then
+        Err.Clear
+        wb.Names.Add Name:="HPPJenisKomponen", RefersTo:="='_LIST_HPP'!$D$2:$D$2"
+    End If
+    On Error GoTo HandleError
+
+    wsForm.Range("A5").Value = "Pilih semua komponen dari MASTER BAHAN BAKU. Isi QTY PAKAI dan SATUAN PAKAI untuk setiap komponen. Satuan pakai harus sesuai dengan SATUAN ISI pada master."
+
+    For r = 9 To 38
+        wsForm.Cells(r, "C").FormulaR1C1 = "=IF(RC[-1]="""","""",IFERROR(INDEX(tbl_BahanBaku[KODE KOMPONEN],MATCH(RC[-1],tbl_BahanBaku[NAMA KOMPONEN],0)),""""))"
+        wsForm.Cells(r, "D").FormulaR1C1 = "=IF(RC[-2]="""","""",IFERROR(INDEX(tbl_BahanBaku[KATEGORI HPP],MATCH(RC[-1],tbl_BahanBaku[KODE KOMPONEN],0)),""""))"
+        wsForm.Cells(r, "G").FormulaR1C1 = "=IF(RC[-5]="""","""",IFERROR(INDEX(tbl_BahanBaku[HARGA PER SATUAN DASAR],MATCH(RC[-4],tbl_BahanBaku[KODE KOMPONEN],0)),""""))"
+        wsForm.Cells(r, "H").FormulaR1C1 = "=IF(OR(RC[-6]="""",RC[-3]="""",RC[-1]="""",NOT(ISNUMBER(RC[-3]))),"""",ROUND(RC[-3]*RC[-1],2))"
+        wsForm.Cells(r, "I").FormulaR1C1 = "=IF(RC[-7]="""","""",IF(OR(RC[-4]="""",NOT(ISNUMBER(RC[-4])),RC[-4]<=0,RC[-3]=""""),""QTY/SATUAN BELUM VALID"",IF(COUNTIF(tbl_BahanBaku[KODE KOMPONEN],RC[-6])=0,""BAHAN TIDAK TERDAFTAR"",IF(OR(IFERROR(INDEX(tbl_BahanBaku[KUANTITAS ISI],MATCH(RC[-6],tbl_BahanBaku[KODE KOMPONEN],0)),0)<=0,IFERROR(INDEX(tbl_BahanBaku[HARGA BELI TOTAL],MATCH(RC[-6],tbl_BahanBaku[KODE KOMPONEN],0)),0)<=0),""HARGA BELUM TERSEDIA"",IF(RC[-3]<>IFERROR(INDEX(tbl_BahanBaku[SATUAN ISI],MATCH(RC[-6],tbl_BahanBaku[KODE KOMPONEN],0)),""""),""PERIKSA SATUAN"",""OK"")))))"
+
+        On Error Resume Next
+        wsForm.Cells(r, "B").Validation.Delete
+        On Error GoTo HandleError
+        wsForm.Cells(r, "B").Validation.Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Operator:=xlBetween, Formula1:="=HPPDaftarBahan"
+        wsForm.Cells(r, "B").Validation.IgnoreBlank = True
+        wsForm.Cells(r, "B").Validation.InCellDropdown = True
+        wsForm.Cells(r, "B").Validation.ShowError = True
+    Next r
+
+    ' HPP PER UNIT hanya menjumlahkan biaya komponen valid milik kode produk itu sendiri.
+    currentStage = "mengalihkan formula MASTER PRODUK ke DETAIL HPP"
+    formulaHPP = "=IF(COUNTIF(tblDetailHPP[KODE PRODUK],[@[KODE PRODUK]])=0,"""",IF(COUNTIFS(tblDetailHPP[KODE PRODUK],[@[KODE PRODUK]],tblDetailHPP[STATUS HARGA],""OK"")<>COUNTIF(tblDetailHPP[KODE PRODUK],[@[KODE PRODUK]]),"""",SUMIFS(tblDetailHPP[BIAYA PEMAKAIAN],tblDetailHPP[KODE PRODUK],[@[KODE PRODUK]])))"
+    formulaLaba = "=IF(OR(NOT(ISNUMBER([@[HPP PER UNIT]])),[@[HARGA JUAL OFFLINE]]=""""),"""",[@[HARGA JUAL OFFLINE]]-[@[HPP PER UNIT]])"
+    formulaMargin = "=IF(OR(NOT(ISNUMBER([@[HPP PER UNIT]])),[@[HARGA JUAL OFFLINE]]<=0),"""",IFERROR([@[LABA PER UNIT (RP)]]/[@[HARGA JUAL OFFLINE]],""""))"
+
+    loProduk.ListColumns("HPP PER UNIT").DataBodyRange.Formula = formulaHPP
+    loProduk.ListColumns("LABA PER UNIT (RP)").DataBodyRange.Formula = formulaLaba
+    loProduk.ListColumns("MARGIN LABA (%)").DataBodyRange.Formula = formulaMargin
+
+    currentStage = "menghitung ulang formula"
+    Application.Calculation = oldCalc
+    If oldCalc = xlCalculationAutomatic Then
+        Application.CalculateFullRebuild
+    Else
+        Application.Calculate
+    End If
+
+    Application.ScreenUpdating = oldScreen
+    Application.EnableEvents = oldEvents
+
+    MsgBox "Selesai. Formula MASTER PRODUK sekarang menghitung HPP dari tblDetailHPP." & vbCrLf & vbCrLf & _
+           "HPP PER UNIT, LABA PER UNIT, dan MARGIN LABA sudah diperbarui. Kolom komisi, promo, harga coret, dan harga setelah promo tidak diubah." & vbCrLf & _
+           "Produk tanpa resep atau yang memiliki komponen tidak valid akan menampilkan hasil kosong sampai datanya lengkap." & vbCrLf & _
+           "Sheet HPP lama dan HPP (KATEGORI) tetap tidak diubah.", vbInformation, "Perbaikan Formula HPP Selesai"
+    Exit Sub
+
+HandleError:
+    savedErrNum = Err.Number
+    savedErrDesc = Err.Description
+    On Error Resume Next
+    If appStateSaved Then
+        Application.Calculation = oldCalc
+        Application.ScreenUpdating = oldScreen
+        Application.EnableEvents = oldEvents
+    End If
+    On Error GoTo 0
+    MsgBox "Macro gagal pada tahap: " & currentStage & vbCrLf & _
+           "Nomor error: " & savedErrNum & vbCrLf & _
+           "Pesan: " & savedErrDesc & vbCrLf & vbCrLf & _
+           "Jika sebagian formula sudah berubah, pulihkan dari salinan cadangan sebelum mencoba lagi.", vbCritical, "Diagnostik Perbaikan Formula HPP"
+End Sub
+
+Private Function HasColumn(ByVal lo As ListObject, ByVal headerName As String) As Boolean
+    Dim lc As ListColumn
+    On Error Resume Next
+    Set lc = lo.ListColumns(headerName)
+    HasColumn = Not lc Is Nothing
+    On Error GoTo 0
+End Function
+
+Private Function ProductHasDetails(ByVal loDetail As ListObject, ByVal productCode As String) As Boolean
+    Dim rng As Range
+    On Error GoTo NoDetails
+    Set rng = loDetail.ListColumns("KODE PRODUK").DataBodyRange
+    If rng Is Nothing Then
+        ProductHasDetails = False
+    Else
+        ProductHasDetails = (Application.WorksheetFunction.CountIf(rng, productCode) > 0)
+    End If
+    Exit Function
+NoDetails:
+    ProductHasDetails = False
+End Function
+
+==============================================================================
+
+COMPONENT: modAlihkanHPPDetail | TYPE=STANDARD MODULE | LINES=242
+------------------------------------------------------------------------------
+Option Explicit
+
+' Mengalihkan perhitungan HPP terjual di STOK & BELANJA BAHAN
+' langsung ke tblDetailHPP dan PENJUALAN (QTY).
+' Macro ini TIDAK menghapus sheet HPP atau HPP (KATEGORI).
+
+Public Sub AlihkanHPPTerjualKeDetailHPP()
+    Const SHEET_STOK As String = "STOK & BELANJA BAHAN"
+    Const SHEET_QTY As String = "PENJUALAN (QTY)"
+    Const SHEET_PRODUK As String = "MASTER PRODUK"
+    Const SHEET_DETAIL As String = "DETAIL HPP"
+    Const TBL_PRODUK As String = "tbl_Produk"
+    Const TBL_DETAIL As String = "tblDetailHPP"
+    Const BARIS_QTY_AWAL As Long = 3
+    Const BARIS_KATEGORI_AWAL As Long = 12
+    Const BARIS_KATEGORI_AKHIR As Long = 16
+    Const BARIS_REKAP_PRODUK_AWAL As Long = 21
+    Const BARIS_REKAP_PRODUK_AKHIR As Long = 51
+    Const BARIS_QTY_MAKS As Long = 500
+
+    Dim wb As Workbook
+    Dim wsStok As Worksheet, wsQty As Worksheet, wsProduk As Worksheet, wsDetail As Worksheet
+    Dim loProduk As ListObject, loDetail As ListObject
+    Dim colCode As Long, colCompCode As Long, colStatus As Long, colKind As Long
+    Dim colDetailCost As Long, colCategory As Long, colProdCode As Long
+    Dim recipeCount As Object, badStatus As Object, badKind As Object
+    Dim lastQty As Long, r As Long, i As Long
+    Dim productCode As String, componentCode As String, statusText As String, kindText As String
+    Dim qtySold As Double, issueList As String, issueCount As Long, soldProducts As Long
+    Dim formulaText As String, term As String
+    Dim oldCalc As XlCalculation, oldScreen As Boolean, oldEvents As Boolean, stateCaptured As Boolean
+    Dim oldCategoryFormulas As Variant, oldProductFormulas As Variant, changesStarted As Boolean
+    Dim capturedErrNumber As Long, capturedErrDescription As String
+    Dim updatedCategory As Long, updatedProductRows As Long
+    Dim answer As VbMsgBoxResult
+
+    On Error GoTo ErrHandler
+    Set wb = ThisWorkbook
+
+    Set wsStok = wb.Worksheets(SHEET_STOK)
+    Set wsQty = wb.Worksheets(SHEET_QTY)
+    Set wsProduk = wb.Worksheets(SHEET_PRODUK)
+    Set wsDetail = wb.Worksheets(SHEET_DETAIL)
+    Set loProduk = wsProduk.ListObjects(TBL_PRODUK)
+    Set loDetail = wsDetail.ListObjects(TBL_DETAIL)
+
+    If loDetail.DataBodyRange Is Nothing Then
+        MsgBox "tblDetailHPP belum memiliki baris data. Tidak ada perubahan yang dilakukan.", vbExclamation, "HPP Terjual"
+        Exit Sub
+    End If
+
+    ' Cari kolom berdasarkan NAMA HEADER agar tidak bergantung pada posisi kolom.
+    colProdCode = GetColumnIndex(loDetail, "KODE PRODUK")
+    colCompCode = GetColumnIndex(loDetail, "KODE KOMPONEN")
+    colStatus = GetColumnIndex(loDetail, "STATUS HARGA")
+    colKind = GetColumnIndex(loDetail, "JENIS KOMPONEN")
+    colDetailCost = GetColumnIndex(loDetail, "BIAYA PEMAKAIAN")
+    colCategory = GetColumnIndex(loDetail, "KATEGORI HPP")
+    Call GetColumnIndex(loProduk, "KODE PRODUK")
+    Call GetColumnIndex(loProduk, "HPP PER UNIT")
+
+    ' Pastikan lima baris kategori tujuan ada.
+    For r = BARIS_KATEGORI_AWAL To BARIS_KATEGORI_AKHIR
+        If Len(Trim$(CStr(wsStok.Cells(r, "A").Value2))) = 0 Then
+            MsgBox "Kategori di STOK & BELANJA BAHAN!A" & r & " kosong. Tidak ada perubahan yang dilakukan.", vbExclamation, "HPP Terjual"
+            Exit Sub
+        End If
+    Next r
+
+    ' Hitung ulang QTY agar pemeriksaan menggunakan total bulanan terbaru.
+    wsQty.Calculate
+    Application.Calculate
+
+    Set recipeCount = CreateObject("Scripting.Dictionary")
+    Set badStatus = CreateObject("Scripting.Dictionary")
+    Set badKind = CreateObject("Scripting.Dictionary")
+    recipeCount.CompareMode = vbTextCompare
+    badStatus.CompareMode = vbTextCompare
+    badKind.CompareMode = vbTextCompare
+
+    ' Audit seluruh rincian. Produk yang terjual harus memiliki resep yang valid
+    ' dan komponen langsung jenis BAHAN, bukan produk/subresep.
+    For i = 1 To loDetail.DataBodyRange.Rows.Count
+        productCode = UCase$(Trim$(CStr(loDetail.DataBodyRange.Cells(i, colProdCode).Value2)))
+        componentCode = Trim$(CStr(loDetail.DataBodyRange.Cells(i, colCompCode).Value2))
+        If productCode <> "" And componentCode <> "" Then
+            If Not recipeCount.Exists(productCode) Then recipeCount.Add productCode, 0
+            recipeCount(productCode) = CLng(recipeCount(productCode)) + 1
+
+            statusText = UCase$(Trim$(CStr(loDetail.DataBodyRange.Cells(i, colStatus).Value2)))
+            If statusText <> "OK" Then
+                If Not badStatus.Exists(productCode) Then badStatus.Add productCode, statusText
+            End If
+
+            kindText = UCase$(Trim$(CStr(loDetail.DataBodyRange.Cells(i, colKind).Value2)))
+            If kindText <> "BAHAN" Then
+                If Not badKind.Exists(productCode) Then badKind.Add productCode, kindText
+            End If
+        End If
+    Next i
+
+    lastQty = wsQty.Cells(wsQty.Rows.Count, "A").End(xlUp).Row
+    If lastQty < BARIS_QTY_AWAL Then
+        MsgBox "Tidak ditemukan daftar produk pada PENJUALAN (QTY). Tidak ada perubahan yang dilakukan.", vbExclamation, "HPP Terjual"
+        Exit Sub
+    End If
+    If lastQty > BARIS_QTY_MAKS Then lastQty = BARIS_QTY_MAKS
+
+    issueList = ""
+    issueCount = 0
+    soldProducts = 0
+
+    For r = BARIS_QTY_AWAL To lastQty
+        productCode = UCase$(Trim$(CStr(wsQty.Cells(r, "A").Value2)))
+        If productCode <> "" Then
+            qtySold = 0
+            If IsNumeric(wsQty.Cells(r, "AH").Value2) Then qtySold = CDbl(wsQty.Cells(r, "AH").Value2)
+            If qtySold > 0 Then
+                soldProducts = soldProducts + 1
+                If Not recipeCount.Exists(productCode) Then
+                    AddIssue issueList, issueCount, productCode & " â€” " & CStr(wsQty.Cells(r, "B").Value2) & ": belum ada rincian di DETAIL HPP"
+                Else
+                    If badStatus.Exists(productCode) Then
+                        AddIssue issueList, issueCount, productCode & " â€” " & CStr(wsQty.Cells(r, "B").Value2) & ": ada STATUS HARGA selain OK (" & CStr(badStatus(productCode)) & ")"
+                    End If
+                    If badKind.Exists(productCode) Then
+                        AddIssue issueList, issueCount, productCode & " â€” " & CStr(wsQty.Cells(r, "B").Value2) & ": masih ada komponen selain jenis BAHAN"
+                    End If
+                End If
+
+                If Not ProductExists(loProduk, productCode) Then
+                    AddIssue issueList, issueCount, productCode & ": kode terjual tidak ditemukan di MASTER PRODUK"
+                End If
+            End If
+        End If
+    Next r
+
+    If soldProducts = 0 Then
+        MsgBox "Tidak ada produk dengan TOTAL QTY bulanan lebih dari nol yang terdeteksi pada kolom AH di PENJUALAN (QTY). Periksa data penjualan. Tidak ada rumus yang diubah.", vbExclamation, "Tidak Ada QTY Terjual"
+        Exit Sub
+    End If
+
+    If issueCount > 0 Then
+        MsgBox "Rumus belum dialihkan karena ada produk terjual yang resepnya belum siap." & vbCrLf & vbCrLf & _
+               "Perbaiki daftar berikut di MASTER PRODUK / DETAIL HPP, lalu jalankan macro ini kembali:" & vbCrLf & _
+               issueList & IIf(issueCount > 12, vbCrLf & "...dan masalah lainnya.", "") & vbCrLf & vbCrLf & _
+               "Tidak ada rumus yang diubah.", vbExclamation, "Pemeriksaan Resep Belum Lulus"
+        Exit Sub
+    End If
+
+    answer = MsgBox("Pemeriksaan awal berhasil." & vbCrLf & _
+                    "Produk dengan QTY terjual > 0 yang diperiksa: " & soldProducts & vbCrLf & vbCrLf & _
+                    "Macro akan mengganti rumus berikut:" & vbCrLf & _
+                    "â€¢ STOK & BELANJA BAHAN!D12:D16: HPP terjual per kategori, dihitung langsung dari tblDetailHPP Ã— QTY bulanan di PENJUALAN (QTY)." & vbCrLf & _
+                    "â€¢ STOK & BELANJA BAHAN!E21:E51: HPP terjual per produk memakai HPP PER UNIT dari tbl_Produk dan total QTY berdasarkan kode produk." & vbCrLf & vbCrLf & _
+                    "Sheet HPP dan HPP (KATEGORI) TIDAK dihapus atau diubah. Lanjutkan?", _
+                    vbYesNo + vbQuestion + vbDefaultButton2, "Konfirmasi Pengalihan Rumus")
+    If answer <> vbYes Then Exit Sub
+
+    oldCalc = Application.Calculation
+    oldScreen = Application.ScreenUpdating
+    oldEvents = Application.EnableEvents
+    stateCaptured = True
+    oldCategoryFormulas = wsStok.Range("D12:D16").Formula
+    oldProductFormulas = wsStok.Range("E21:E51").Formula
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+
+    ' D12:D16: total HPP terjual per kategori.
+    ' SUMIF mencocokkan KODE PRODUK pada DETAIL HPP dengan kode dan total QTY
+    ' penjualan; tblDetailHPP berkembang otomatis saat baris baru ditambahkan.
+    For r = BARIS_KATEGORI_AWAL To BARIS_KATEGORI_AKHIR
+        formulaText = "=SUMPRODUCT((tblDetailHPP[KATEGORI HPP]=$A" & r & ")*(tblDetailHPP[STATUS HARGA]=" & Chr(34) & "OK" & Chr(34) & ")*IFERROR(1*tblDetailHPP[BIAYA PEMAKAIAN],0)*SUMIF('PENJUALAN (QTY)'!$A$3:$A$500,tblDetailHPP[KODE PRODUK],'PENJUALAN (QTY)'!$AH$3:$AH$500))"
+        changesStarted = True
+        wsStok.Cells(r, "D").Formula = formulaText
+        updatedCategory = updatedCategory + 1
+    Next r
+
+    ' E21:E51: biaya HPP terjual per produk. SUMIF berdasarkan KODE PRODUK
+    ' membuatnya tetap benar saat urutan produk berubah di salah satu sheet.
+    For r = BARIS_REKAP_PRODUK_AWAL To BARIS_REKAP_PRODUK_AKHIR
+        formulaText = "=IF($A" & r & "=" & Chr(34) & Chr(34) & "," & Chr(34) & Chr(34) & ",SUMIF('PENJUALAN (QTY)'!$A$3:$A$500,$A" & r & ",'PENJUALAN (QTY)'!$AH$3:$AH$500)*IFERROR(INDEX(tbl_Produk[HPP PER UNIT],MATCH($A" & r & ",tbl_Produk[KODE PRODUK],0)),0))"
+        wsStok.Cells(r, "E").Formula = formulaText
+        updatedProductRows = updatedProductRows + 1
+    Next r
+
+    Application.Calculation = oldCalc
+    Application.EnableEvents = oldEvents
+    Application.ScreenUpdating = oldScreen
+    Application.CalculateFull
+
+    MsgBox "Rumus berhasil dialihkan." & vbCrLf & vbCrLf & _
+           "â€¢ Kategori diperbarui: " & updatedCategory & " sel (D12:D16)." & vbCrLf & _
+           "â€¢ Perhitungan HPP per produk diperbarui: " & updatedProductRows & " sel (E21:E51)." & vbCrLf & _
+           "â€¢ Sumber QTY: PENJUALAN (QTY)." & vbCrLf & _
+           "â€¢ Sumber biaya: tblDetailHPP dan tbl_Produk." & vbCrLf & vbCrLf & _
+           "Sheet HPP dan HPP (KATEGORI) masih dipertahankan untuk perbandingan. Periksa hasilnya sebelum menghapus sheet lama.", _
+           vbInformation, "Pengalihan Rumus Berhasil"
+    Exit Sub
+
+ErrHandler:
+    capturedErrNumber = Err.Number
+    capturedErrDescription = Err.Description
+    On Error Resume Next
+    If changesStarted Then
+        wsStok.Range("D12:D16").Formula = oldCategoryFormulas
+        wsStok.Range("E21:E51").Formula = oldProductFormulas
+    End If
+    If stateCaptured Then
+        Application.Calculation = oldCalc
+        Application.EnableEvents = oldEvents
+        Application.ScreenUpdating = oldScreen
+    End If
+    MsgBox "Pengalihan rumus gagal. Formula yang diubah sudah dicoba dipulihkan, dan tidak ada sheet yang dihapus." & vbCrLf & _
+           "Tahap: Alihkan HPP terjual ke DETAIL HPP" & vbCrLf & _
+           "Nomor error: " & capturedErrNumber & vbCrLf & _
+           "Pesan: " & capturedErrDescription & vbCrLf & vbCrLf & _
+           "Periksa keterangan error sebelum mencoba lagi.", _
+           vbCritical, "Diagnostik Pengalihan Rumus"
+End Sub
+
+Private Function GetColumnIndex(ByVal lo As ListObject, ByVal columnName As String) As Long
+    On Error GoTo MissingColumn
+    GetColumnIndex = lo.ListColumns(columnName).Index
+    Exit Function
+MissingColumn:
+    Err.Raise vbObjectError + 712, "GetColumnIndex", _
+              "Kolom '" & columnName & "' tidak ditemukan pada tabel '" & lo.Name & "'."
+End Function
+
+Private Function ProductExists(ByVal lo As ListObject, ByVal productCode As String) As Boolean
+    Dim idx As Long
+    idx = GetColumnIndex(lo, "KODE PRODUK")
+    If lo.DataBodyRange Is Nothing Then Exit Function
+    ProductExists = (Application.WorksheetFunction.CountIf(lo.ListColumns(idx).DataBodyRange, productCode) > 0)
+End Function
+
+Private Sub AddIssue(ByRef issueList As String, ByRef issueCount As Long, ByVal issueText As String)
+    issueCount = issueCount + 1
+    If issueCount <= 12 Then issueList = issueList & "â€¢ " & issueText & vbCrLf
+End Sub
+
+==============================================================================
+
+COMPONENT: modPetaUlangWorkbook | TYPE=STANDARD MODULE | LINES=177
+------------------------------------------------------------------------------
+Option Explicit
+
+' DIAGNOSTIK SAJA - TIDAK MENGUBAH ISI WORKBOOK.
+' Menulis peta sheet, Excel Table, formula, nilai, dan validasi ke file TXT terpisah.
+
+Public Sub BuatPetaUlangWorkbook()
+    Dim outPath As Variant
+    Dim f As Integer
+    Dim ws As Worksheet
+    Dim lo As ListObject
+    Dim nm As Name
+
+    outPath = Application.GetSaveAsFilename( _
+        InitialFileName:=DefaultReportName(), _
+        FileFilter:="Text files (*.txt), *.txt", _
+        Title:="Simpan laporan peta workbook")
+    If VarType(outPath) = vbBoolean And outPath = False Then Exit Sub
+
+    On Error GoTo ErrHandler
+    f = FreeFile
+    Open CStr(outPath) For Output As #f
+
+    Print #f, "LAPORAN PETA ULANG WORKBOOK - DIAGNOSTIK SAJA"
+    Print #f, "Workbook: " & ThisWorkbook.Name
+    Print #f, "Waktu dibuat: " & Format$(Now, "yyyy-mm-dd hh:nn:ss")
+    Print #f, "Catatan: macro ini hanya membaca workbook dan membuat file TXT baru."
+    Print #f, String$(100, "=")
+
+    Print #f, "BAGIAN 1 - DAFTAR SHEET DAN UKURAN"
+    For Each ws In ThisWorkbook.Worksheets
+        Print #f, "SHEET=" & ws.Name & _
+                  " | CODENAME=" & ws.CodeName & _
+                  " | VISIBILITY=" & CStr(ws.Visible) & _
+                  " | USED_RANGE=" & ws.UsedRange.Address(False, False)
+        If ws.ListObjects.Count > 0 Then
+            For Each lo In ws.ListObjects
+                Print #f, "  TABLE=" & lo.Name & _
+                          " | RANGE=" & lo.Range.Address(False, False) & _
+                          " | HEADER_ROW=" & lo.HeaderRowRange.Address(False, False) & _
+                          " | DATA_ROWS=" & CStr(lo.ListRows.Count) & _
+                          " | COLUMNS=" & CStr(lo.ListColumns.Count)
+                Dim lc As ListColumn
+                For Each lc In lo.ListColumns
+                    Print #f, "    TABLE_COLUMN " & CStr(lc.Index) & _
+                              " | HEADER=" & CleanText(CStr(lc.Name)) & _
+                              " | RANGE=" & lc.Range.Address(False, False)
+                Next lc
+            Next lo
+        End If
+    Next ws
+
+    Print #f, String$(100, "=")
+    Print #f, "BAGIAN 2 - DEFINED NAMES"
+    For Each nm In ThisWorkbook.Names
+        Print #f, "NAME=" & nm.Name & " | REFERS_TO=" & CleanText(nm.RefersTo)
+    Next nm
+
+    Print #f, String$(100, "=")
+    Print #f, "BAGIAN 3 - RINCIAN SEL PENTING"
+    Print #f, "Setiap sel berisi alamat, nilai, tampilan, formula, dan validasi jika ada."
+
+    WriteRangeIfExists f, "STOK & BELANJA BAHAN", "A1:I65"
+    WriteRangeIfExists f, "STOK & BELANJA BAHAN", "A990:I1010"
+    WriteRangeIfExists f, "REKAP PENJUALAN", "A1:G70"
+    WriteRangeIfExists f, "PENJUALAN (QTY)", "A1:AH100"
+    WriteRangeIfExists f, "PENJUALAN (RP)", "A1:AI100"
+    WriteRangeIfExists f, "MASTER PRODUK", "A1:J100"
+    WriteRangeIfExists f, "MASTER BAHAN BAKU", "A1:H500"
+    WriteRangeIfExists f, "DETAIL HPP", "A1:K300"
+    WriteRangeIfExists f, "FORM HPP", "A1:M50"
+    WriteRangeIfExists f, "HPP (KATEGORI)", "A1:H100"
+    WriteRangeIfExists f, "HPP", "A1:V250"
+
+    Print #f, String$(100, "=")
+    Print #f, "AKHIR LAPORAN"
+    Close #f
+
+    MsgBox "Peta workbook selesai dibuat:" & vbCrLf & CStr(outPath) & vbCrLf & vbCrLf & _
+           "Workbook asli tidak diubah oleh macro diagnostik ini.", vbInformation, "Peta Workbook"
+    Exit Sub
+
+ErrHandler:
+    On Error Resume Next
+    If f <> 0 Then Close #f
+    MsgBox "Laporan tidak berhasil dibuat." & vbCrLf & _
+           "Error " & Err.Number & ": " & Err.Description, vbExclamation, "Peta Workbook"
+End Sub
+
+Private Sub WriteRangeIfExists(ByVal f As Integer, ByVal sheetName As String, ByVal rangeAddress As String)
+    Dim ws As Worksheet
+    Dim rng As Range
+    Dim c As Range
+    Dim valText As String
+    Dim formulaText As String
+    Dim displayText As String
+
+    Set ws = Nothing
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(sheetName)
+    On Error GoTo 0
+    If ws Is Nothing Then
+        Print #f, vbCrLf & "SHEET TIDAK DITEMUKAN: " & sheetName
+        Exit Sub
+    End If
+
+    Print #f, vbCrLf & String$(100, "-")
+    Print #f, "AREA: " & ws.Name & "!" & rangeAddress
+    Set rng = Intersect(ws.Range(rangeAddress), ws.UsedRange)
+    If rng Is Nothing Then
+        Print #f, "Tidak ada sel terpakai dalam area ini."
+        Exit Sub
+    End If
+
+    For Each c In rng.Cells
+        If c.MergeCells Then
+            If c.Address(False, False) <> c.MergeArea.Cells(1, 1).Address(False, False) Then GoTo NextCell
+        End If
+
+        If c.hasFormula Or Not IsEmpty(c.Value2) Then
+            valText = SafeValue(c.Value2)
+            displayText = CleanText(CStr(c.Text))
+            formulaText = ""
+            If c.hasFormula Then formulaText = CleanText(CStr(c.Formula))
+            Print #f, "CELL " & c.Address(False, False) & _
+                      " | VALUE2=" & valText & _
+                      " | DISPLAY=" & displayText & _
+                      " | FORMULA=" & formulaText & _
+                      " | VALIDATION=" & ValidationInfo(c)
+        End If
+NextCell:
+    Next c
+End Sub
+
+Private Function SafeValue(ByVal v As Variant) As String
+    If IsError(v) Then
+        SafeValue = "#ERROR"
+    ElseIf IsEmpty(v) Then
+        SafeValue = "(EMPTY)"
+    ElseIf VarType(v) = vbString Then
+        If Len(CStr(v)) = 0 Then
+            SafeValue = "(EMPTY STRING)"
+        Else
+            SafeValue = CleanText(CStr(v))
+        End If
+    Else
+        SafeValue = CleanText(CStr(v))
+    End If
+End Function
+
+Private Function ValidationInfo(ByVal c As Range) As String
+    Dim t As Long
+    Dim f1 As String
+    Dim f2 As String
+    On Error GoTo NoValidation
+    t = c.Validation.Type
+    f1 = c.Validation.Formula1
+    f2 = c.Validation.Formula2
+    ValidationInfo = "TYPE=" & CStr(t) & ";F1=" & CleanText(f1) & ";F2=" & CleanText(f2)
+    Exit Function
+NoValidation:
+    Err.Clear
+    ValidationInfo = "NONE"
+End Function
+
+Private Function CleanText(ByVal s As String) As String
+    s = Replace(s, vbCr, " ")
+    s = Replace(s, vbLf, " ")
+    s = Replace(s, vbTab, " ")
+    CleanText = s
+End Function
+
+Private Function DefaultReportName() As String
+    Dim base As String
+    base = ThisWorkbook.Name
+    If InStrRev(base, ".") > 0 Then base = Left$(base, InStrRev(base, ".") - 1)
+    DefaultReportName = base & "_PETA_ULANG_DIAGNOSTIK.txt"
+End Function
+
+==============================================================================
+
+COMPONENT: modPerbaikiRekapHPPBenar | TYPE=STANDARD MODULE | LINES=299
+------------------------------------------------------------------------------
+Option Explicit
+
+' Memperbaiki rekap HPP dengan pemetaan sheet/rentang yang benar.
+' TIDAK MENYENTUH STOK & BELANJA BAHAN!E21:E1009 (kolom input QTY BELI).
+' HPP per produk dipindahkan ke REKAP PENJUALAN!E21:E51.
+' HPP kategori dihitung memakai kolom bantuan tersembunyi dalam tblDetailHPP.
+
+Public Sub PerbaikiRekapHPPDenganPemetaanBenar()
+    Dim wb As Workbook
+    Dim wsStok As Worksheet, wsRekap As Worksheet, wsQty As Worksheet
+    Dim wsProduk As Worksheet, wsDetail As Worksheet
+    Dim lo As ListObject
+    Dim lcQtySold As ListColumn, lcCostSold As ListColumn
+    Dim existedHelpers As Boolean, addedHelpers As Boolean
+    Dim oldCatFormulas As Variant, oldRekapFormulas As Variant
+    Dim oldQtyHelperFormulas As Variant, oldCostHelperFormulas As Variant
+    Dim oldHiddenL As Boolean, oldHiddenM As Boolean
+    Dim oldScreenUpdating As Boolean, oldEnableEvents As Boolean
+    Dim oldDisplayAlerts As Boolean
+    Dim rowNum As Long, i As Long, j As Long
+    Dim code As String, componentCode As String, kind As String
+    Dim category As String, statusText As String
+    Dim qtySold As Double, categoryTotal As Double, productTotal As Double
+    Dim issueText As String, issueCount As Long
+    Dim lastQtyRow As Long, lastRekapRow As Long
+    Dim changedFormulas As Boolean, completed As Boolean
+    Dim msg As String
+
+    On Error GoTo ErrHandler
+
+    Set wb = ThisWorkbook
+    Set wsStok = wb.Worksheets("STOK & BELANJA BAHAN")
+    Set wsRekap = wb.Worksheets("REKAP PENJUALAN")
+    Set wsQty = wb.Worksheets("PENJUALAN (QTY)")
+    Set wsProduk = wb.Worksheets("MASTER PRODUK")
+    Set wsDetail = wb.Worksheets("DETAIL HPP")
+    Set lo = wsDetail.ListObjects("tblDetailHPP")
+
+    oldScreenUpdating = Application.ScreenUpdating
+    oldEnableEvents = Application.EnableEvents
+    oldDisplayAlerts = Application.DisplayAlerts
+
+    ' ---------- PREFLIGHT: jangan ubah apa pun jika pemetaan tidak cocok ----------
+    If UCase$(Trim$(CStr(wsStok.Range("E21").Value2))) <> "QTY BELI" Then
+        MsgBox "Dibatalkan: STOK & BELANJA BAHAN!E21 tidak berisi header QTY BELI. " & _
+               "Workbook mungkin berbeda atau sel input sudah berubah. Tidak ada perubahan dilakukan.", vbExclamation
+        Exit Sub
+    End If
+
+    If UCase$(Trim$(CStr(wsRekap.Range("E20").Value2))) <> "TOTAL HPP TERJUAL (RP)" Then
+        MsgBox "Dibatalkan: header REKAP PENJUALAN!E20 tidak sesuai. Tidak ada perubahan dilakukan.", vbExclamation
+        Exit Sub
+    End If
+
+    If lo.ListColumns.Count < 11 Then
+        MsgBox "Dibatalkan: tblDetailHPP tidak memiliki 11 kolom dasar yang diharapkan.", vbExclamation
+        Exit Sub
+    End If
+
+    If Not HasTableColumn(lo, "KODE PRODUK") Or _
+       Not HasTableColumn(lo, "JENIS KOMPONEN") Or _
+       Not HasTableColumn(lo, "KODE KOMPONEN") Or _
+       Not HasTableColumn(lo, "KATEGORI HPP") Or _
+       Not HasTableColumn(lo, "BIAYA PEMAKAIAN") Or _
+       Not HasTableColumn(lo, "STATUS HARGA") Then
+        MsgBox "Dibatalkan: ada header penting yang tidak ditemukan di tblDetailHPP.", vbExclamation
+        Exit Sub
+    End If
+
+    If wsStok.Range("A12").Value2 <> "BAHAN UTAMA" Or _
+       wsStok.Range("A13").Value2 <> "BUMBU & PELENGKAP" Or _
+       wsStok.Range("A14").Value2 <> "BAHAN MINUMAN" Or _
+       wsStok.Range("A15").Value2 <> "KEMASAN & SUPPLIES" Or _
+       wsStok.Range("A16").Value2 <> "OVERHEAD / OPERASIONAL" Then
+        MsgBox "Dibatalkan: daftar kategori pada STOK & BELANJA BAHAN!A12:A16 berbeda dari yang diharapkan.", vbExclamation
+        Exit Sub
+    End If
+
+    If lo.DataBodyRange Is Nothing Then
+        MsgBox "Dibatalkan: tblDetailHPP belum memiliki baris data.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Waspada bila kolom QTY BELI saat ini masih berisi formula.
+    ' Macro tidak akan menulis di sana; tetapi formula di area input harus dipulihkan dari backup dulu.
+    For rowNum = 22 To 1009
+        If wsStok.Cells(rowNum, "E").hasFormula Then
+            MsgBox "Dibatalkan demi keamanan: ditemukan formula di STOK & BELANJA BAHAN!E" & rowNum & _
+                   ". Kolom E adalah input manual QTY BELI. Pulihkan nilai dari backup dahulu, lalu jalankan ulang. " & _
+                   "Macro ini tidak mengubah kolom input tersebut.", vbCritical
+            Exit Sub
+        End If
+    Next rowNum
+
+    ' Pastikan kolom bantuan belum pernah dibuat sebagian dan tidak menimpa data lain.
+    Set lcQtySold = GetTableColumn(lo, "QTY TERJUAL")
+    Set lcCostSold = GetTableColumn(lo, "HPP TERJUAL PER KOMPONEN")
+
+    If (lcQtySold Is Nothing) Xor (lcCostSold Is Nothing) Then
+        MsgBox "Dibatalkan: hanya satu dari dua kolom bantuan HPP yang ditemukan. Perlu pemeriksaan manual; tidak ada perubahan dilakukan.", vbExclamation
+        Exit Sub
+    End If
+
+    existedHelpers = Not lcQtySold Is Nothing And Not lcCostSold Is Nothing
+    If existedHelpers Then
+        If lcQtySold.Index <> 12 Or lcCostSold.Index <> 13 Then
+            MsgBox "Dibatalkan: posisi kolom bantuan tblDetailHPP tidak berada di kolom L:M seperti yang diharapkan.", vbExclamation
+            Exit Sub
+        End If
+        oldQtyHelperFormulas = lcQtySold.DataBodyRange.Formula
+        oldCostHelperFormulas = lcCostSold.DataBodyRange.Formula
+    Else
+        If Application.WorksheetFunction.CountA(wsDetail.Range("L1:M" & lo.Range.Row + lo.Range.Rows.Count - 1)) > 0 Then
+            MsgBox "Dibatalkan: terdapat data di kolom DETAIL HPP!L:M di luar tabel. " & _
+                   "Macro tidak akan menimpanya.", vbExclamation
+            Exit Sub
+        End If
+    End If
+
+    ' Audit resep dan harga untuk semua produk yang terjual.
+    lastQtyRow = 33
+    lastRekapRow = 51
+    For rowNum = 3 To lastQtyRow
+        code = Trim$(CStr(wsQty.Cells(rowNum, "A").Value2))
+        If Len(code) > 0 And IsNumeric(wsQty.Cells(rowNum, "AH").Value2) Then
+            qtySold = CDbl(wsQty.Cells(rowNum, "AH").Value2)
+            If qtySold > 0 Then
+                If Application.WorksheetFunction.CountIf(wsProduk.ListObjects("tbl_Produk").ListColumns("KODE PRODUK").DataBodyRange, code) <> 1 Then
+                    AddIssue issueText, issueCount, code & ": kode tidak ditemukan tepat satu kali di tbl_Produk."
+                End If
+
+                If Application.WorksheetFunction.CountIf(lo.ListColumns("KODE PRODUK").DataBodyRange, code) = 0 Then
+                    AddIssue issueText, issueCount, code & ": belum memiliki resep di tblDetailHPP."
+                Else
+                    For i = 1 To lo.ListRows.Count
+                        If Trim$(CStr(lo.ListColumns("KODE PRODUK").DataBodyRange.Cells(i, 1).Value2)) = code Then
+                            statusText = UCase$(Trim$(CStr(lo.ListColumns("STATUS HARGA").DataBodyRange.Cells(i, 1).Value2)))
+                            kind = UCase$(Trim$(CStr(lo.ListColumns("JENIS KOMPONEN").DataBodyRange.Cells(i, 1).Value2)))
+                            componentCode = Trim$(CStr(lo.ListColumns("KODE KOMPONEN").DataBodyRange.Cells(i, 1).Value2))
+                            category = Trim$(CStr(lo.ListColumns("KATEGORI HPP").DataBodyRange.Cells(i, 1).Value2))
+                            If Len(componentCode) > 0 Then
+                                If statusText <> "OK" Then AddIssue issueText, issueCount, code & ": status harga belum OK pada baris DETAIL HPP " & lo.DataBodyRange.Rows(i).Row & "."
+                                If kind <> "BAHAN" Then AddIssue issueText, issueCount, code & ": JENIS KOMPONEN bukan BAHAN pada baris DETAIL HPP " & lo.DataBodyRange.Rows(i).Row & "."
+                                If Not IsKnownCategory(category) Then AddIssue issueText, issueCount, code & ": kategori tidak valid pada baris DETAIL HPP " & lo.DataBodyRange.Rows(i).Row & "."
+                            End If
+                        End If
+                    Next i
+                End If
+            End If
+        End If
+    Next rowNum
+
+    If issueCount > 0 Then
+        MsgBox "Dibatalkan saat pemeriksaan awal. Tidak ada formula yang diubah." & vbCrLf & vbCrLf & _
+               "Masalah yang perlu diperiksa:" & vbCrLf & Left$(issueText, 3000), vbExclamation
+        Exit Sub
+    End If
+
+    ' Snapshot formula di sel yang memang akan diubah saja.
+    oldCatFormulas = wsStok.Range("D12:D16").Formula
+    oldRekapFormulas = wsRekap.Range("E21:E51").Formula
+    oldHiddenL = wsDetail.Columns("L").Hidden
+    oldHiddenM = wsDetail.Columns("M").Hidden
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.DisplayAlerts = False
+
+    ' Tambahkan dua helper tersembunyi hanya di DETAIL HPP, bukan di tabel input belanja.
+    If Not existedHelpers Then
+        Set lcQtySold = lo.ListColumns.Add
+        lcQtySold.Name = "QTY TERJUAL"
+        addedHelpers = True
+        Set lcCostSold = lo.ListColumns.Add
+        lcCostSold.Name = "HPP TERJUAL PER KOMPONEN"
+    End If
+
+    ' Pencocokan qty per baris resep dengan KODE PRODUK, bukan nomor baris yang kebetulan sama.
+    changedFormulas = True
+    lcQtySold.DataBodyRange.Formula = "=IF([@[KODE PRODUK]]="""",0,IFERROR(INDEX('PENJUALAN (QTY)'!$AH$3:$AH$500,MATCH([@[KODE PRODUK]],'PENJUALAN (QTY)'!$A$3:$A$500,0)),0))"
+
+    ' Hanya komponen dari produk yang seluruh baris resepnya valid yang dihitung.
+    lcCostSold.DataBodyRange.Formula = "=IF(AND([@[KODE KOMPONEN]]<>"""",[@[STATUS HARGA]]=""OK"",ISNUMBER([@[BIAYA PEMAKAIAN]]),COUNTIFS(tblDetailHPP[KODE PRODUK],[@[KODE PRODUK]],tblDetailHPP[STATUS HARGA],""OK"")=COUNTIF(tblDetailHPP[KODE PRODUK],[@[KODE PRODUK]])),[@[BIAYA PEMAKAIAN]]*[@[QTY TERJUAL]],0)"
+
+    ' HPP terjual per produk ditempatkan di REKAP PENJUALAN, yaitu lokasi yang benar.
+    For rowNum = 21 To lastRekapRow
+        wsRekap.Cells(rowNum, "E").Formula = "=IF($A" & rowNum & "="""","""",IFERROR(SUMIF('PENJUALAN (QTY)'!$A$3:$A$500,$A" & rowNum & ",'PENJUALAN (QTY)'!$AH$3:$AH$500)*INDEX(tbl_Produk[HPP PER UNIT],MATCH($A" & rowNum & ",tbl_Produk[KODE PRODUK],0)),0))"
+    Next rowNum
+
+    ' Rekap kategori memakai biaya terjual per komponen yang sudah dihitung satu baris per bahan.
+    For rowNum = 12 To 16
+        wsStok.Cells(rowNum, "D").Formula = "=SUMIFS(tblDetailHPP[HPP TERJUAL PER KOMPONEN],tblDetailHPP[KATEGORI HPP],$A" & rowNum & ")"
+    Next rowNum
+
+    ' Helper tetap tersedia untuk perhitungan, tetapi disembunyikan dari tampilan pengguna.
+    wsDetail.Columns("L:M").Hidden = True
+    Application.CalculateFull
+
+    categoryTotal = Application.WorksheetFunction.Sum(wsStok.Range("D12:D16"))
+    productTotal = Application.WorksheetFunction.Sum(wsRekap.Range("E21:E51"))
+
+    If Abs(categoryTotal - productTotal) > 1# Then
+        msg = "Pemeriksaan akhir gagal. Total kategori = " & Format(categoryTotal, "#,##0.00") & _
+              ", sedangkan total rekap produk = " & Format(productTotal, "#,##0.00") & "." & vbCrLf & _
+              "Formula pada sel target telah dikembalikan ke keadaan semula. Jika helper baru sempat ditambahkan, kolomnya juga dihapus. " & _
+              "Periksa struktur resep dan kategori terlebih dahulu."
+        GoTo Rollback
+    End If
+
+    completed = True
+    Application.DisplayAlerts = oldDisplayAlerts
+    Application.EnableEvents = oldEnableEvents
+    Application.ScreenUpdating = oldScreenUpdating
+
+    MsgBox "Selesai. Pemetaan telah diperbaiki." & vbCrLf & vbCrLf & _
+           "HPP terjual per produk: REKAP PENJUALAN!E21:E51" & vbCrLf & _
+           "HPP terjual per kategori: STOK & BELANJA BAHAN!D12:D16" & vbCrLf & _
+           "Total produk: Rp " & Format(productTotal, "#,##0.00") & vbCrLf & _
+           "Total kategori: Rp " & Format(categoryTotal, "#,##0.00") & vbCrLf & vbCrLf & _
+           "STOK & BELANJA BAHAN!E21:E1009 tidak diubah. Kolom bantuan pada DETAIL HPP disembunyikan.", vbInformation
+    Exit Sub
+
+Rollback:
+    On Error Resume Next
+    If changedFormulas Then
+        wsStok.Range("D12:D16").Formula = oldCatFormulas
+        wsRekap.Range("E21:E51").Formula = oldRekapFormulas
+    End If
+    If addedHelpers Then
+        lo.ListColumns("HPP TERJUAL PER KOMPONEN").Delete
+        lo.ListColumns("QTY TERJUAL").Delete
+    ElseIf existedHelpers Then
+        lcQtySold.DataBodyRange.Formula = oldQtyHelperFormulas
+        lcCostSold.DataBodyRange.Formula = oldCostHelperFormulas
+    End If
+    wsDetail.Columns("L").Hidden = oldHiddenL
+    wsDetail.Columns("M").Hidden = oldHiddenM
+    Application.CalculateFull
+    Application.DisplayAlerts = oldDisplayAlerts
+    Application.EnableEvents = oldEnableEvents
+    Application.ScreenUpdating = oldScreenUpdating
+    On Error GoTo 0
+    MsgBox msg, vbCritical
+    Exit Sub
+
+ErrHandler:
+    msg = "Macro berhenti karena error: " & Err.Number & " - " & Err.Description & vbCrLf & _
+          "Jika perubahan formula sudah dimulai, macro mencoba mengembalikan formula target. Periksa ulang hasilnya sebelum menyimpan."
+    On Error Resume Next
+    If changedFormulas Then
+        wsStok.Range("D12:D16").Formula = oldCatFormulas
+        wsRekap.Range("E21:E51").Formula = oldRekapFormulas
+    End If
+    If addedHelpers Then
+        lo.ListColumns("HPP TERJUAL PER KOMPONEN").Delete
+        lo.ListColumns("QTY TERJUAL").Delete
+    ElseIf existedHelpers Then
+        lcQtySold.DataBodyRange.Formula = oldQtyHelperFormulas
+        lcCostSold.DataBodyRange.Formula = oldCostHelperFormulas
+    End If
+    If Not wsDetail Is Nothing Then
+        wsDetail.Columns("L").Hidden = oldHiddenL
+        wsDetail.Columns("M").Hidden = oldHiddenM
+    End If
+    Application.DisplayAlerts = oldDisplayAlerts
+    Application.EnableEvents = oldEnableEvents
+    Application.ScreenUpdating = oldScreenUpdating
+    On Error GoTo 0
+    MsgBox msg, vbCritical
+End Sub
+
+Private Function HasTableColumn(ByVal lo As ListObject, ByVal columnName As String) As Boolean
+    Dim lc As ListColumn
+    On Error Resume Next
+    Set lc = lo.ListColumns(columnName)
+    HasTableColumn = Not lc Is Nothing
+    On Error GoTo 0
+End Function
+
+Private Function GetTableColumn(ByVal lo As ListObject, ByVal columnName As String) As ListColumn
+    On Error Resume Next
+    Set GetTableColumn = lo.ListColumns(columnName)
+    On Error GoTo 0
+End Function
+
+Private Function IsKnownCategory(ByVal category As String) As Boolean
+    Select Case UCase$(Trim$(category))
+        Case "BAHAN UTAMA", "BUMBU & PELENGKAP", "BAHAN MINUMAN", "KEMASAN & SUPPLIES", "OVERHEAD / OPERASIONAL"
+            IsKnownCategory = True
+        Case Else
+            IsKnownCategory = False
+    End Select
+End Function
+
+Private Sub AddIssue(ByRef issueText As String, ByRef issueCount As Long, ByVal issue As String)
+    issueCount = issueCount + 1
+    If issueCount <= 20 Then issueText = issueText & "- " & issue & vbCrLf
+    If issueCount = 21 Then issueText = issueText & "- (masih ada masalah lain; daftar dibatasi)" & vbCrLf
+End Sub
+
+==============================================================================
+
+COMPONENT: modEksporAuditVBA | TYPE=STANDARD MODULE | LINES=96
+------------------------------------------------------------------------------
+Option Explicit
+
+' ============================================================
+' AUDIT SAJA: mengekspor kode semua komponen VBA menjadi TXT.
+' Macro ini tidak mengubah formula, data, sheet, atau kode lain.
+' Memerlukan izin "Trust access to the VBA project object model".
+' Setelah audit selesai, modul sementara ini boleh dihapus.
+' ============================================================
+
+Public Sub EksporSumberVBAUntukAudit()
+    Dim wb As Workbook
+    Dim vbProj As Object
+    Dim comp As Object
+    Dim codeMod As Object
+    Dim stm As Object
+    Dim outputPath As String
+    Dim kind As String
+    Dim codeText As String
+    Dim lineCount As Long
+
+    On Error GoTo ErrHandler
+
+    Set wb = ThisWorkbook
+
+    If Len(wb.Path) = 0 Then
+        MsgBox "Simpan workbook sebagai file .xlsm terlebih dahulu, lalu jalankan macro ini lagi.", vbExclamation, "Audit VBA"
+        Exit Sub
+    End If
+
+    ' Akses ini akan ditolak jika Trust Center belum mengizinkannya.
+    Set vbProj = wb.VBProject
+
+    Set stm = CreateObject("ADODB.Stream")
+    stm.Type = 2          ' adTypeText
+    stm.Charset = "utf-8"
+    stm.Open
+
+    stm.WriteText "LAPORAN EKSPOR KODE VBA UNTUK AUDIT" & vbCrLf
+    stm.WriteText "Workbook: " & wb.Name & vbCrLf
+    stm.WriteText "Tanggal: " & Format$(Now, "yyyy-mm-dd hh:nn:ss") & vbCrLf
+    stm.WriteText "Catatan: isi kode diekspor untuk pemeriksaan; tidak ada kode yang dijalankan oleh macro ini selain proses ekspor." & vbCrLf
+    stm.WriteText String$(78, "=") & vbCrLf & vbCrLf
+
+    For Each comp In vbProj.VBComponents
+        Set codeMod = comp.CodeModule
+        lineCount = codeMod.CountOfLines
+
+        Select Case CLng(comp.Type)
+            Case 1: kind = "STANDARD MODULE"
+            Case 2: kind = "CLASS MODULE"
+            Case 3: kind = "USERFORM"
+            Case 100: kind = "WORKSHEET / THISWORKBOOK MODULE"
+            Case Else: kind = "COMPONENT TYPE " & CStr(comp.Type)
+        End Select
+
+        stm.WriteText "COMPONENT: " & comp.Name & " | TYPE=" & kind & " | LINES=" & CStr(lineCount) & vbCrLf
+        stm.WriteText String$(78, "-") & vbCrLf
+
+        If lineCount > 0 Then
+            codeText = codeMod.Lines(1, lineCount)
+            stm.WriteText codeText
+            If Right$(codeText, 2) <> vbCrLf Then stm.WriteText vbCrLf
+        Else
+            stm.WriteText "[KOMPONEN TIDAK MEMILIKI KODE]" & vbCrLf
+        End If
+
+        stm.WriteText vbCrLf & String$(78, "=") & vbCrLf & vbCrLf
+    Next comp
+
+    outputPath = wb.Path & Application.PathSeparator & _
+                 "KODE_VBA_AUDIT_" & Format$(Now, "yyyymmdd_hhnnss") & ".txt"
+    stm.SaveToFile outputPath, 2   ' adSaveCreateOverWrite
+    stm.Close
+
+    MsgBox "Selesai. File audit kode VBA disimpan di:" & vbCrLf & outputPath & vbCrLf & vbCrLf & _
+           "Macro ini hanya mengekspor kode. Tidak ada modul yang dihapus atau diubah.", _
+           vbInformation, "Audit VBA selesai"
+    Exit Sub
+
+ErrHandler:
+    On Error Resume Next
+    If Not stm Is Nothing Then
+        If stm.State = 1 Then stm.Close
+    End If
+    On Error GoTo 0
+
+    If Err.Number = 1004 Or InStr(1, Err.Description, "programmatic access", vbTextCompare) > 0 Or _
+       InStr(1, Err.Description, "VBProject", vbTextCompare) > 0 Then
+        MsgBox "Excel menolak akses ke kode VBA proyek." & vbCrLf & vbCrLf & _
+               "Untuk menjalankan ekspor otomatis, aktifkan sementara: File > Options > Trust Center > Trust Center Settings > Macro Settings > Trust access to the VBA project object model." & vbCrLf & _
+               "Jalankan ekspor, lalu nonaktifkan kembali opsi itu. Jika tidak ingin mengubah opsi keamanan, ekspor komponen secara manual dari VBA Editor.", _
+               vbExclamation, "Akses VBA dibatasi"
+    Else
+        MsgBox "Ekspor tidak selesai. Error " & CStr(Err.Number) & ": " & Err.Description, vbExclamation, "Audit VBA"
+    End If
+End Sub
+
+==============================================================================
+
+COMPONENT: modEksporAuditVBA_v2 | TYPE=STANDARD MODULE | LINES=148
+------------------------------------------------------------------------------
+Option Explicit
+
+' ============================================================
+' AUDIT SAJA: mengekspor kode komponen VBA ke satu file TXT.
+' Macro ini hanya membaca kode, tidak menghapus/mengubah kode,
+' formula, data, atau sheet workbook.
+'
+' Versi 2 memperbaiki error handler agar nomor dan deskripsi
+' error asli disimpan SEBELUM proses pembersihan.
+' ============================================================
+
+Public Sub EksporSumberVBAUntukAuditV2()
+    Dim wb As Workbook
+    Dim vbProj As Object
+    Dim comp As Object
+    Dim codeMod As Object
+    Dim stm As Object
+    Dim suggestedPath As String
+    Dim selectedPath As Variant
+    Dim outputPath As String
+    Dim kind As String
+    Dim codeText As String
+    Dim lineCount As Long
+
+    Dim stage As String
+    Dim errNumber As Long
+    Dim errDescription As String
+    Dim errSource As String
+    Dim failedStage As String
+
+    On Error GoTo ErrHandler
+
+    stage = "menentukan workbook yang akan diaudit"
+    Set wb = ThisWorkbook
+
+    If Len(wb.Path) = 0 Then
+        MsgBox "Simpan workbook sebagai file .xlsm terlebih dahulu, lalu jalankan macro ini lagi.", _
+               vbExclamation, "Audit VBA"
+        Exit Sub
+    End If
+
+    stage = "mengakses proyek VBA workbook (periksa Trust Center jika ditolak)"
+    Set vbProj = wb.VBProject
+
+    stage = "membuat objek penulisan teks UTF-8"
+    Set stm = CreateObject("ADODB.Stream")
+    stm.Type = 2          ' adTypeText
+    stm.Charset = "utf-8"
+    stm.Open
+
+    stage = "menulis header laporan"
+    stm.WriteText "LAPORAN EKSPOR KODE VBA UNTUK AUDIT" & vbCrLf
+    stm.WriteText "Workbook: " & wb.Name & vbCrLf
+    stm.WriteText "Tanggal: " & Format$(Now, "yyyy-mm-dd hh:nn:ss") & vbCrLf
+    stm.WriteText "Catatan: laporan ini hanya membaca dan mengekspor kode VBA." & vbCrLf
+    stm.WriteText String$(78, "=") & vbCrLf & vbCrLf
+
+    For Each comp In vbProj.VBComponents
+        stage = "membaca komponen: " & CStr(comp.Name)
+        Set codeMod = comp.CodeModule
+        lineCount = codeMod.CountOfLines
+
+        Select Case CLng(comp.Type)
+            Case 1: kind = "STANDARD MODULE"
+            Case 2: kind = "CLASS MODULE"
+            Case 3: kind = "USERFORM CODE MODULE"
+            Case 100: kind = "WORKSHEET / THISWORKBOOK MODULE"
+            Case Else: kind = "COMPONENT TYPE " & CStr(comp.Type)
+        End Select
+
+        stm.WriteText "COMPONENT: " & CStr(comp.Name) & " | TYPE=" & kind & " | LINES=" & CStr(lineCount) & vbCrLf
+        stm.WriteText String$(78, "-") & vbCrLf
+
+        If lineCount > 0 Then
+            codeText = codeMod.Lines(1, lineCount)
+            stm.WriteText codeText
+            If Right$(codeText, Len(vbCrLf)) <> vbCrLf Then stm.WriteText vbCrLf
+        Else
+            stm.WriteText "[KOMPONEN TIDAK MEMILIKI KODE]" & vbCrLf
+        End If
+
+        stm.WriteText vbCrLf & String$(78, "=") & vbCrLf & vbCrLf
+    Next comp
+
+    stage = "meminta lokasi penyimpanan file laporan"
+    suggestedPath = wb.Path & Application.PathSeparator & _
+                    "KODE_VBA_AUDIT_V2_" & Format$(Now, "yyyymmdd_hhnnss") & ".txt"
+    selectedPath = Application.GetSaveAsFilename( _
+                       InitialFileName:=suggestedPath, _
+                       FileFilter:="Text Files (*.txt), *.txt", _
+                       Title:="Simpan laporan kode VBA")
+
+    If VarType(selectedPath) = vbBoolean Then
+        If Not stm Is Nothing Then
+            If stm.State = 1 Then stm.Close
+        End If
+        MsgBox "Ekspor dibatalkan. Tidak ada perubahan pada workbook.", vbInformation, "Audit VBA"
+        Exit Sub
+    End If
+
+    outputPath = CStr(selectedPath)
+    If LCase$(Right$(outputPath, 4)) <> ".txt" Then outputPath = outputPath & ".txt"
+
+    stage = "menyimpan laporan ke: " & outputPath
+    stm.SaveToFile outputPath, 2   ' adSaveCreateOverWrite
+
+    stage = "menutup aliran teks"
+    stm.Close
+
+    MsgBox "Ekspor selesai." & vbCrLf & vbCrLf & _
+           "File tersimpan di:" & vbCrLf & outputPath & vbCrLf & vbCrLf & _
+           "Macro ini tidak menghapus atau mengubah modul VBA apa pun.", _
+           vbInformation, "Audit VBA selesai"
+    Exit Sub
+
+ErrHandler:
+    ' PENTING: simpan error sebelum melakukan cleanup. Operasi cleanup
+    ' yang berhasil dapat mengosongkan Err, sehingga harus diambil dulu.
+    errNumber = Err.Number
+    errDescription = Err.Description
+    errSource = Err.Source
+    failedStage = stage
+
+    On Error Resume Next
+    If Not stm Is Nothing Then
+        If stm.State = 1 Then stm.Close
+    End If
+    On Error GoTo 0
+
+    If errNumber = 1004 Or _
+       InStr(1, errDescription, "programmatic access", vbTextCompare) > 0 Or _
+       InStr(1, errDescription, "VBProject", vbTextCompare) > 0 Or _
+       InStr(1, errDescription, "Visual Basic Project", vbTextCompare) > 0 Then
+        MsgBox "Excel menolak akses ke proyek VBA." & vbCrLf & vbCrLf & _
+               "Aktifkan sementara: File > Options > Trust Center > Trust Center Settings > Macro Settings > Trust access to the VBA project object model." & vbCrLf & _
+               "Jika opsi sudah aktif, periksa apakah proyek VBA terkunci untuk dilihat." & vbCrLf & vbCrLf & _
+               "Tahap: " & failedStage & vbCrLf & _
+               "Error " & CStr(errNumber) & ": " & errDescription, _
+               vbExclamation, "Akses VBA dibatasi"
+    Else
+        MsgBox "Ekspor tidak selesai." & vbCrLf & vbCrLf & _
+               "Tahap: " & failedStage & vbCrLf & _
+               "Error " & CStr(errNumber) & ": " & errDescription & vbCrLf & _
+               "Sumber: " & errSource & vbCrLf & vbCrLf & _
+               "Kirim nomor error, deskripsi, dan tahap ini agar penyebabnya bisa ditentukan.", _
+               vbExclamation, "Audit VBA gagal"
+    End If
+End Sub
+
+==============================================================================
+
